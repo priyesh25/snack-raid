@@ -7,7 +7,7 @@ A funny stealth game for kids aged 10 to 12. It is midnight, you are hungry, and
 - **Plays in a browser.** Plain HTML, CSS and JavaScript. No build step, no dependencies, no server code.
 - **Works offline** once hosted (it installs a service worker).
 - **Made for landscape phones and tablets.** Also plays with a keyboard on a laptop.
-- **Kid-safe.** No ads, no purchases, no accounts, no chat. Progress stays on the device.
+- **Kid-safe.** No ads, no purchases, no accounts, no chat. Progress stays on the device. Up to 4 named raiders per device, and save codes to move one to another phone.
 
 Version 0.1.0 is a first playable build: all of World 1.
 
@@ -37,8 +37,9 @@ After each release, bump `VERSION` in `app/js/data.js` and `CACHE` in `app/sw.js
 
 ## Put it on Android
 
-- **Fastest:** open the hosted link in Chrome on the phone and choose "Install app" or "Add to Home screen". It then opens full screen and works offline.
-- **Real app:** wrap `app/` with Capacitor. The steps are in [docs/android.md](docs/android.md). They have not been run yet.
+- **The app:** download [snack-raid.apk](https://github.com/priyesh25/snack-raid/releases/latest/download/snack-raid.apk) on the phone and open it. It tells you when a new version is ready.
+- **No install:** open https://priyesh25.github.io/snack-raid/ in Chrome and choose "Add to Home screen".
+- How the app is built, signed and updated: [docs/android.md](docs/android.md).
 
 ## What is in this folder
 
@@ -48,7 +49,10 @@ After each release, bump `VERSION` in `app/js/data.js` and `CACHE` in `app/sw.js
 | `docs/game-design.md` | The full game design: rules, levels, economy, art direction |
 | `docs/codes.md` | All 16 promo codes and 10 cheat codes |
 | `docs/build-notes.md` | How the code is put together, and what is built versus planned |
-| `docs/android.md` | How to wrap the game as an Android app |
+| `docs/android.md` | The Android app: install, updates, signing, releases |
+| `docs/release-notes/` | What is new in each version, shown on the GitHub release |
+| `android/` | The Capacitor Android project |
+| `.github/workflows/android.yml` | Builds the APK and publishes releases |
 | `docs/context/` | The brief, the ideas that were considered, and the decisions with their reasons |
 | `docs/screenshots/` | Screenshots from the build |
 | `art/concept/` | Key art, cast sheet, snack and gadget icon sheets |

@@ -32,6 +32,11 @@ with sync_playwright() as p:
     pg.screenshot(path=f"{OUT}/01-title.png")
     pg.click("text=PLAY")
     pg.wait_for_timeout(300)
+    # first launch asks for a raider name
+    pg.screenshot(path=f"{OUT}/01b-name.png")
+    pg.fill("#rname", "Tester")
+    pg.click("text=Let's go")
+    pg.wait_for_timeout(300)
     if pg.locator("text=OK").count():
         pg.screenshot(path=f"{OUT}/02-daily.png")
         pg.click("text=OK")

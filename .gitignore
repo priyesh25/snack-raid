@@ -16,3 +16,11 @@ node_modules/
 # native wrapper build output (if you add Capacitor later)
 /android/app/build/
 /android/.gradle/
+
+# signing keys never go in the repo
+*.p12
+*.jks
+*.keystore
+
+# APKs built locally
+/dist/

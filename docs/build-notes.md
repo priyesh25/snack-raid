@@ -16,7 +16,8 @@ Everything is in `app/`. Plain ES modules, no build step.
 | `js/render.js` | Drawing: floors, furniture, characters, rings, cones, the HUD |
 | `js/input.js` | Touch stick, on-screen buttons, keyboard |
 | `js/ui.js` | Menus and overlays as HTML |
-| `js/save.js` | Progress in localStorage, ranks, prizes, the streak |
+| `js/save.js` | Progress in localStorage, up to 4 named raiders, save codes, ranks, prizes, the streak |
+| `js/native.js` | App-only parts: is this the Android app, and is a newer version out |
 | `js/codes.js` | Promo and cheat codes (generated) |
 | `js/audio.js` | Synthesized sound effects and the music loop |
 | `js/gfx.js`, `js/sprites.js` | Sprite drawing, and every sprite as an SVG string (generated) |
@@ -38,6 +39,7 @@ Everything is in `app/`. Plain ES modules, no build step.
 - `tools/fuzz-test.mjs`: a random bot mashes every input on every night and gets teleported next to everything. Any exception fails.
 - `tools/codes-test.mjs`: redeems all 26 codes.
 - `tools/browser-test.py`: opens the real game in Chromium, clicks through the menus, plays a little, saves screenshots, and fails on any console error.
+- `tools/raiders-test.py`: names, a second raider, a save code round trip, the Back button, and the app's update button (with a fake GitHub answer).
 
 ## Built versus designed
 
@@ -56,7 +58,7 @@ Everything is in `app/`. Plain ES modules, no build step.
 | Looks | 7 pajama sets, 2 raiders by pajama choice | 14 more sets, bedroom decorating, Make Your Raider |
 | Codes | 16 promo, 10 cheat | |
 | Sound | Synthesized effects, a simple music loop that speeds up | A composed, reactive score |
-| Platform | Browser, offline, installable | Capacitor wrapper, tested on a real phone |
+| Platform | Browser, offline, installable. Android app (Capacitor 8) with update checks and notifications, built and released by GitHub Actions | Tested on a real phone |
 
 ## Known rough edges
 

@@ -7,6 +7,7 @@ import { loadSprites, setDpr } from './gfx.js';
 import { save, persist, applyResult, carrySlots } from './save.js';
 import { UI } from './ui.js';
 import { play, music, setTense, buzz, unlockAudio } from './audio.js';
+import { isApp, checkUpdate } from './native.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -68,6 +69,11 @@ UI.init({
   onSettings: () => { input.lefty = save.settings.lefty; if (!save.settings.music) music(false); },
 });
 input.onPause = () => { if (mode === 'play') { mode = 'paused'; input.enabled = false; music(false); UI.overlay('pause'); } };
+// Android Back: pause a night, or go back one menu. 'exit' sends the app to the background.
+window.snackRaidBack = () => {
+  if (mode === 'play') { input.onPause(); return 'ok'; }
+  return UI.back() ? 'ok' : 'exit';
+};
 document.addEventListener('visibilitychange', () => { if (document.hidden && mode === 'play') input.onPause(); });
 window.addEventListener('resize', resize);
 window.addEventListener('pointerdown', unlockAudio, { passive: true });
@@ -103,9 +109,11 @@ async function boot() {
   UI.show('title');
   requestAnimationFrame(frame);
   // offline support on real hosting (not on localhost, so development never fights a stale cache)
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  // The Android app carries its own files, so it needs no cache. It asks GitHub for a newer version instead.
+  if (isApp()) checkUpdate().then(() => UI.updated());
+  else if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 boot();
 
 // a small handle for tests and for curious kids with a console
-window.snackRaid = { get game() { return game; }, get mode() { return mode; }, save, startNight, version: VERSION };
+window.snackRaid = { get game() { return game; }, get mode() { return mode; }, get save() { return save; }, startNight, version: VERSION };

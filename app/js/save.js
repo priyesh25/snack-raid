@@ -1,9 +1,14 @@
 // Snack Raid: the player's progress, kept in localStorage on this device only.
+// Up to 4 raiders can share one device. Each has a name and a save of their own.
+// A save code moves a raider to another device by copy and paste. Nothing is ever sent anywhere.
 import { RANKS, GADGETS, UPGRADE_COST, LEVELS } from './data.js';
 
-const KEY = 'snackraid.save.v1';
+const KEY = 'snackraid.save.v1';            // raider p1 keeps the first key, so old saves just work
+const PKEY = 'snackraid.profiles.v1';
+const keyFor = id => (id === 'p1' ? KEY : KEY + '.' + id);
+export const MAX_RAIDERS = 4;
 const fresh = () => ({
-  v: 1, coins: 0, wrappers: 0, crumbs: 0, cards: 1,
+  v: 1, name: '', coins: 0, wrappers: 0, crumbs: 0, cards: 1,
   gadgets: {},          // id -> level (1..5)
   loadout: [],
   levels: {},           // n -> { stars: [bool, bool, bool], wrapper, best }
@@ -16,26 +21,95 @@ const fresh = () => ({
   settings: { sound: true, music: true, haptics: true, lefty: false },
 });
 
-export let save = load();
+let prof = loadProfiles();
+export let save = load(prof.active);
 
-function load() {
-  let s = fresh();
+function loadProfiles() {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) { const old = JSON.parse(raw); s = { ...s, ...old, settings: { ...s.settings, ...(old.settings || {}) } }; }
-  } catch (e) { /* no storage: play without saving */ }
-  return s;
+    const p = JSON.parse(localStorage.getItem(PKEY));
+    if (p && Array.isArray(p.ids) && p.ids.length && p.ids.includes(p.active)) return p;
+  } catch (e) { /* no storage, or nothing saved yet */ }
+  return { active: 'p1', ids: ['p1'] };
 }
-export function persist() { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } }
-export function resetSave() { const keep = save.settings; save = fresh(); save.settings = keep; persist(); }
+function saveProfiles() { try { localStorage.setItem(PKEY, JSON.stringify(prof)); } catch (e) { /* ignore */ } }
+function merge(old) { const s = fresh(); return { ...s, ...old, settings: { ...s.settings, ...(old.settings || {}) } }; }
+function load(id) {
+  try {
+    const raw = localStorage.getItem(keyFor(id));
+    if (raw) return merge(JSON.parse(raw));
+  } catch (e) { /* no storage: play without saving */ }
+  return fresh();
+}
+export function persist() { try { localStorage.setItem(keyFor(prof.active), JSON.stringify(save)); } catch (e) { /* ignore */ } }
+export function resetSave() { const keep = save.settings, name = save.name; save = fresh(); save.settings = keep; save.name = name; persist(); }
 
 export const today = () => { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
-export function rank() { let r = 1; RANKS.forEach((k, i) => { if (save.crumbs >= k.need) r = i + 1; }); return r; }
+const rankOf = s => { let r = 1; RANKS.forEach((k, i) => { if (s.crumbs >= k.need) r = i + 1; }); return r; };
+const starsOf = s => LEVELS.reduce((t, l) => t + ((s.levels[l.n] || {}).stars || []).filter(Boolean).length, 0);
+export function rank() { return rankOf(save); }
 export function gadgetSlots() { const r = rank(); return save.bonusSlot || r >= 5 ? 3 : r >= 2 ? 2 : 1; }
 export function carrySlots() { const r = rank(); const s = r >= 9 ? 5 : r >= 6 ? 4 : r >= 3 ? 3 : 2; return save.bonusPouch ? Math.max(3, s) : s; }
 export function levelInfo(n) { return save.levels[n] || { stars: [false, false, false], wrapper: false, best: 0 }; }
-export function totalStars() { return LEVELS.reduce((s, l) => s + levelInfo(l.n).stars.filter(Boolean).length, 0); }
+export function totalStars() { return starsOf(save); }
 export function worldWrappers() { return LEVELS.filter(l => levelInfo(l.n).wrapper).length; }
+
+// ------------------------------------------------------------ raiders
+// Names: letters, numbers, spaces, - and _. Up to 12 characters. A nickname is best.
+export function cleanName(n) { return String(n || '').replace(/[^\p{L}\p{N} _-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 12); }
+export function setName(n) { const c = cleanName(n); if (!c) return false; save.name = c; persist(); return true; }
+export function raiders() {
+  return prof.ids.map(id => {
+    const s = id === prof.active ? save : load(id);
+    return { id, name: s.name || 'Raider', rank: rankOf(s), stars: starsOf(s), pajama: s.pajama, active: id === prof.active };
+  });
+}
+export function switchRaider(id) {
+  if (!prof.ids.includes(id) || id === prof.active) return false;
+  persist(); prof.active = id; saveProfiles(); save = load(id); return true;
+}
+// adds a raider with this save and makes it the one playing
+function addRaider(data) {
+  if (prof.ids.length >= MAX_RAIDERS) return false;
+  let i = 1; while (prof.ids.includes('p' + i)) i++;
+  persist(); prof.ids.push('p' + i); prof.active = 'p' + i; saveProfiles();
+  save = data; persist(); return true;
+}
+export function newRaider(name) {
+  const c = cleanName(name); if (!c) return false;
+  const s = fresh(); s.settings = { ...save.settings }; s.name = c;
+  return addRaider(s);
+}
+export function deleteRaider(id) {
+  if (prof.ids.length <= 1 || !prof.ids.includes(id)) return false;
+  try { localStorage.removeItem(keyFor(id)); } catch (e) { /* ignore */ }
+  prof.ids = prof.ids.filter(x => x !== id);
+  if (prof.active === id) { prof.active = prof.ids[0]; save = load(prof.active); }
+  saveProfiles(); return true;
+}
+
+// ------------------------------------------------------------ save codes
+// SNACK1-<the save in base64>-<check>. The check catches a code that lost some letters on the way.
+const check = t => { let h = 7; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0; return h.toString(36).toUpperCase().padStart(7, '0').slice(-5); };
+const toB64 = str => { let b = ''; new TextEncoder().encode(str).forEach(x => { b += String.fromCharCode(x); }); return btoa(b); };
+const fromB64 = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64), ch => ch.charCodeAt(0)));
+export function saveCode() {
+  const { settings, ...rest } = save;   // settings belong to the device, not the raider
+  const body = toB64(JSON.stringify(rest));
+  return 'SNACK1-' + body + '-' + check(body);
+}
+// Loads a code as a new raider on this device. Returns { ok, msg }.
+export function loadSaveCode(code) {
+  const m = String(code || '').replace(/\s+/g, '').match(/^SNACK1-([A-Za-z0-9+/=]+)-([0-9A-Z]{5})$/);
+  if (!m) return { ok: false, msg: 'That is not a save code. A save code starts with SNACK1.' };
+  if (check(m[1]) !== m[2]) return { ok: false, msg: 'Part of the code is missing. Copy all of it and try again.' };
+  let data;
+  try { data = JSON.parse(fromB64(m[1])); } catch (e) { data = null; }
+  if (!data || data.v !== 1 || typeof data.coins !== 'number' || typeof data.levels !== 'object') return { ok: false, msg: 'That code is broken. Copy it again.' };
+  if (prof.ids.length >= MAX_RAIDERS) return { ok: false, msg: 'This device has 4 raiders already. Remove one first.' };
+  const s = merge(data); s.settings = { ...save.settings }; s.name = cleanName(s.name) || 'Raider';
+  addRaider(s);
+  return { ok: true, msg: 'Welcome back, ' + s.name + '!' };
+}
 
 // Is a night open? Night 9 needs 4 Golden Wrappers. The boss needs 15 stars.
 export function unlocked(n) {

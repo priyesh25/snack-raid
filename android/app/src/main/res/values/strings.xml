@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Snack Raid</string>
+    <string name="title_activity_main">Snack Raid</string>
+    <string name="package_name">io.github.priyesh25.snackraid</string>
+    <string name="custom_url_scheme">io.github.priyesh25.snackraid</string>
+</resources>

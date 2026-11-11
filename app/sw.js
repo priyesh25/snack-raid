@@ -1,10 +1,10 @@
 // Snack Raid service worker: caches the whole game so it works offline after the first visit.
 // Bump CACHE when you ship a new version.
-const CACHE = 'snack-raid-v0.1.0';
+const CACHE = 'snack-raid-v0.2.0';
 const FILES = [
   './', './index.html', './manifest.webmanifest', './css/style.css',
   './js/main.js', './js/ui.js', './js/game.js', './js/world.js', './js/render.js', './js/input.js', './js/gfx.js',
-  './js/audio.js', './js/save.js', './js/codes.js', './js/data.js', './js/sprites.js',
+  './js/audio.js', './js/save.js', './js/native.js', './js/codes.js', './js/data.js', './js/sprites.js',
   './assets/fonts/fredoka-latin-400-normal.woff2', './assets/fonts/fredoka-latin-500-normal.woff2',
   './assets/fonts/fredoka-latin-600-normal.woff2', './assets/fonts/fredoka-latin-700-normal.woff2',
   './assets/fonts/baloo-2-latin-800-normal.woff2',

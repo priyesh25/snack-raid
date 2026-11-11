@@ -1,0 +1,15 @@
+{
+  "name": "snack-raid",
+  "private": true,
+  "type": "module",
+  "description": "Snack Raid. The game is plain files in app/. Node is only used for the Android wrapper (Capacitor) and the tests.",
+  "scripts": {
+    "sync": "cap sync android",
+    "test": "node tools/sim-test.mjs && node tools/fuzz-test.mjs && node tools/codes-test.mjs"
+  },
+  "devDependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/cli": "8.6.0",
+    "@capacitor/core": "8.6.0"
+  }
+}

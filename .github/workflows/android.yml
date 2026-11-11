@@ -1,0 +1,105 @@
+# Builds the Android app on every push to main.
+# When VERSION in app/js/data.js is new (no release vX.Y.Z yet), it also publishes a signed
+# GitHub release with snack-raid.apk. Installed apps find it through the releases API.
+name: Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Capacitor
+        run: npm ci
+
+      - name: Game tests
+        run: |
+          node tools/sim-test.mjs
+          node tools/fuzz-test.mjs
+          node tools/codes-test.mjs
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Read the version
+        id: ver
+        run: |
+          v=$(sed -n "s/^export const VERSION = '\([0-9.]*\)';/\1/p" app/js/data.js)
+          test -n "$v"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if gh release view "v$v" >/dev/null 2>&1; then echo "new=false" >> "$GITHUB_OUTPUT"; else echo "new=true" >> "$GITHUB_OUTPUT"; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Copy the game into the Android project
+        run: npx cap sync android
+
+      - name: Unpack the signing key
+        id: key
+        env:
+          KEY_B64: ${{ secrets.SNACK_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEY_B64" ]; then
+            echo "::warning::No signing key in the repo secrets. Building an unsigned APK, no release. See docs/android.md."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$KEY_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            echo "SNACK_KEYSTORE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the APK
+        working-directory: android
+        env:
+          SNACK_KEYSTORE_PASSWORD: ${{ secrets.SNACK_KEYSTORE_PASSWORD }}
+          SNACK_KEY_ALIAS: ${{ secrets.SNACK_KEY_ALIAS }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+          mkdir -p ../dist
+          cp app/build/outputs/apk/release/*.apk ../dist/snack-raid.apk
+          ls -l ../dist
+
+      - name: Check the signature
+        if: steps.key.outputs.signed == 'true'
+        run: |
+          signer=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$signer" verify --verbose --print-certs dist/snack-raid.apk | grep -E "Verified|Signer #1 certificate (DN|SHA-256)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snack-raid-${{ steps.ver.outputs.version }}-apk
+          path: dist/snack-raid.apk
+
+      - name: Publish the release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.ver.outputs.new == 'true' && steps.key.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=${{ steps.ver.outputs.version }}
+          notes=docs/release-notes/v$v.md
+          [ -f "$notes" ] || { echo "Snack Raid $v" > "$RUNNER_TEMP/notes.md"; notes="$RUNNER_TEMP/notes.md"; }
+          gh release create "v$v" dist/snack-raid.apk --title "Snack Raid $v" --notes-file "$notes" --target "$GITHUB_SHA"

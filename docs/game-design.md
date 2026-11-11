@@ -707,6 +707,15 @@ Your bedroom is the main menu. Every feature is an object in the room, and the r
 - Version 1 has two raiders to pick from, Kai and Zara. Same abilities, different looks. The player can rename them.
 - Later: a full Make Your Raider screen with faces, hair and skin tones.
 
+**Raider names and save slots (built in 0.2.0)**
+
+- The first time you press Play, the game asks "Who is raiding?" and you type a raider name.
+- Names: up to 12 letters, numbers, spaces, - or _. The hint says a nickname is best.
+- Up to 4 raiders per device. Each has a name and progress of their own, so brothers and sisters can share a phone.
+- The Raiders screen lists them with rank and stars. Play as, Rename, and Remove (tap twice).
+- **Save codes.** "Copy my save code" makes a text code that starts with SNACK1. Paste it on another phone and it loads as a new raider. Nothing goes through a server.
+- Settings (sound, music, vibration, left-handed) belong to the device, not the raider.
+
 **Pajamas**
 
 There are 21 sets. They change looks only, never power, so nobody has to wear a set they dislike. Each set has its own tiptoe animation and Busted pose.
@@ -891,7 +900,7 @@ The game needs 17 screens. This list is the brief for the next step.
 
 This should be a game a parent is happy to hand over.
 
-- **Offline and private.** No accounts, no chat, no ads, no personal data, no links out of the game.
+- **Offline and private.** No accounts, no chat, no ads, no personal data, no links out of the game. The one exception: the "new version is ready" button and notification download the new app file from the game's own GitHub page. The raider name stays on the device.
 - **No real money in version 1.** Everything is earned by playing. Lunchboxes are never sold.
 - **Nobody gets hurt.** Grown-ups are funny, never scary or mean. Busted is a punchline.
 - **Nothing dangerous to copy.** No stove, no knives, no climbing stacked furniture, no leaving the house at night. The fridge holds only kid snacks.
@@ -908,6 +917,12 @@ Version 1 is World 1, done well. Everything else waits until a real kid has play
 - A playable web build is in the project folder. It runs in a browser, works offline once hosted, and can be wrapped for Android.
 - **In:** all 8 nights of World 1, the Dad boss, a Sugar Dream coin rush, 6 cast members, 12 snacks, 8 gadgets with levels, stars, points, coins, ranks, Excuse Cards, the Snack Streak, 7 pajama sets and all 26 codes.
 - **Not in yet:** Daily Craving, Daily Dares, Night Twists, the Sticker Album, eat-now boosts, bedroom decorating and the other 11 gadgets.
+
+**Version 0.2: the Android app**
+
+- An Android app (APK) built from the same files, published on the game's GitHub page.
+- Raider names, up to 4 save slots per device, and save codes.
+- The app checks for a new version and shows a notification when one is ready.
 
 **Version 1: first playable**
 

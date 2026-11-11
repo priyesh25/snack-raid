@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notification icon: a cookie with a bite out of it. Android shows it in one color. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+        android:pathData="M12,2A10,10 0,1 0,22 12A3,3 0,0 1,18.5 9A3,3 0,0 1,15 5.5A3,3 0,0 1,12 2ZM8,8A1.5,1.5 0,1 1,8 11A1.5,1.5 0,1 1,8 8ZM13,12A1.5,1.5 0,1 1,13 15A1.5,1.5 0,1 1,13 12ZM8.5,15A1.2,1.2 0,1 1,8.5 17.4A1.2,1.2 0,1 1,8.5 15ZM17,14A1.2,1.2 0,1 1,17 16.4A1.2,1.2 0,1 1,17 14Z" />
+</vector>

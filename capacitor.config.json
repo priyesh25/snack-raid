@@ -1,0 +1,10 @@
+{
+  "appId": "io.github.priyesh25.snackraid",
+  "appName": "Snack Raid",
+  "webDir": "app",
+  "android": {
+    "backgroundColor": "#141A3C",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  }
+}

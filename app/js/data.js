@@ -1,6 +1,6 @@
 // Snack Raid: game data. Numbers follow docs/game-design.md.
 export const T = 64; // tile size in logical pixels
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
 
 // ---------------------------------------------------------------- snacks
 export const SNACKS = {

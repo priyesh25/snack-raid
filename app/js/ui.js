@@ -1,7 +1,9 @@
 // Snack Raid: menus and overlays, built as plain HTML over the canvas.
 import { LEVELS, SNACKS, GADGETS, RANKS, PAJAMAS, TYPE_COLOR, STASH_HINT, VERSION, gadgetCharges } from './data.js';
 import { save, persist, resetSave, rank, gadgetSlots, carrySlots, levelInfo, totalStars, unlocked, lockReason, claimDaily,
-  ownGadget, giveGadget, buyGadget, upgradeCost, upgradeGadget, toggleLoadout } from './save.js';
+  ownGadget, giveGadget, buyGadget, upgradeCost, upgradeGadget, toggleLoadout,
+  setName, raiders, switchRaider, newRaider, deleteRaider, MAX_RAIDERS, saveCode, loadSaveCode } from './save.js';
+import { isApp, isAndroidBrowser, APK_URL, checkUpdate, pendingUpdate, getUpdate } from './native.js';
 import { redeem, CHEATS } from './codes.js';
 import { spriteUrl } from './gfx.js';
 import { play } from './audio.js';
@@ -11,7 +13,11 @@ const img = (name, cls = '') => `<img class="${cls}" src="${spriteUrl(name)}" al
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const num = n => Number(n).toLocaleString('en-US');
 const pjSprite = () => (PAJAMAS.find(p => p.id === save.pajama) || PAJAMAS[0]).sprite;
-let cb = {}, current = null, lastMsg = null;
+let cb = {}, current = null, lastMsg = null, confirmDel = null;
+const updateBtn = () => { const u = pendingUpdate(); return u ? `<button class="btn pink" data-act="getupd">Version ${esc(u.version)} is ready. Tap to update</button>` : ''; };
+const kidFor = pj => (PAJAMAS.find(p => p.id === pj) || PAJAMAS[0]).sprite;
+// where the phone's Back button goes from each screen
+const BACK = { hub: 'title', name: 'title', raiders: 'title', brief: 'map' };
 
 function wallet() {
   return `<span class="chip">${img('ui_coin')}${num(save.coins)}</span><span class="chip">${img('ui_wrapper')}${save.wrappers}</span>` +
@@ -23,15 +29,49 @@ function back(to = 'hub') { return `<button class="btn ghost small" data-act="go
 // ------------------------------------------------------------ screens
 const SCREENS = {
   title: () => `<div class="titlebg"></div><div class="titlebox">
-      <button class="btn big green" data-act="go" data-arg="hub">PLAY</button>
-      <button class="btn ghost small" data-act="fs">Full screen</button></div>
-      <div class="titlenote muted small">v${VERSION} &middot; plays offline &middot; no ads, no purchases</div>`,
+      ${updateBtn()}
+      <button class="btn big green" data-act="play">PLAY</button>
+      ${save.name ? `<button class="btn ghost small" data-act="go" data-arg="raiders">Raider: ${esc(save.name)} &middot; switch</button>` : ''}
+      ${isApp() ? '' : '<button class="btn ghost small" data-act="fs">Full screen</button>'}</div>
+      <div class="titlenote muted small">v${VERSION} &middot; plays offline &middot; no ads, no purchases${isAndroidBrowser() ? ` &middot; <a href="${APK_URL}" style="color:var(--glow)">Get the Android app</a>` : ''}</div>`,
+
+  // arg: undefined (first time), 'new' (another raider) or 'rename'
+  name: arg => `<div class="screen center"><div class="panel pop">
+      <h2 style="font-size:clamp(26px,5.5vh,44px)">${arg === 'rename' ? 'New name' : 'Who is raiding?'}</h2>
+      <div class="muted">Pick a raider name. A nickname is best. It stays on this ${isApp() ? 'phone' : 'device'}.</div>
+      <input class="code" id="rname" maxlength="12" autocomplete="off" spellcheck="false" placeholder="RAIDER NAME" value="${arg === 'rename' ? esc(save.name) : ''}">
+      <button class="btn big green" data-act="savename" data-arg="${arg || ''}">${arg === 'rename' ? 'Save' : 'Let\'s go'}</button>
+      <div id="namemsg" class="note"></div>
+      ${arg ? back('raiders') : ''}</div></div>`,
+
+  raiders: () => {
+    const list = raiders();
+    return `<div class="screen">
+      <div class="bar">${back('title')}<h2>Raiders</h2></div>
+      <div class="muted">Everyone who plays on this ${isApp() ? 'phone' : 'device'} can have their own raider and progress. Up to ${MAX_RAIDERS}.</div>
+      <div class="list">${list.map(r => `<div class="item">${img(kidFor(r.pajama))}<b>${esc(r.name)}</b><p>Rank ${r.rank} &middot; ${r.stars} of 27 stars</p>
+        <div class="act">${r.active ? `<span class="tag" style="background:var(--green)">PLAYING</span><button class="btn small ghost" data-act="rename">Rename</button>` :
+          `<button class="btn small green" data-act="pick" data-arg="${r.id}">Play as ${esc(r.name)}</button>`}
+          ${list.length > 1 ? `<button class="btn small red" data-act="delraider" data-arg="${r.id}">${confirmDel === r.id ? 'Tap again to remove' : 'Remove'}</button>` : ''}</div></div>`).join('')}
+        ${list.length < MAX_RAIDERS ? `<button class="item newraider" data-act="newraider">${img('kid_star')}<b>New raider</b><p>Starts from Night 1</p></button>` : ''}
+      </div>
+      <div class="panel codes">
+        <b>Move a raider to another phone</b>
+        <div class="muted small">Copy the save code for ${esc(save.name || 'this raider')}. On the other phone, open Raiders and paste it below. You can keep playing here too.</div>
+        <div class="row"><button class="btn small" data-act="copycode">Copy my save code</button></div>
+        <textarea id="codeout" class="code" readonly rows="2" style="display:none"></textarea>
+        <textarea id="codein" class="code" rows="2" placeholder="Paste a save code here"></textarea>
+        <div class="row"><button class="btn small green" data-act="loadcode">Load as a new raider</button></div>
+        <div id="raidmsg" class="note"></div>
+      </div></div>`;
+  },
 
   hub: () => {
     const r = rank(), cur = RANKS[r - 1], nxt = RANKS[r];
     const pct = nxt ? Math.round(100 * (save.crumbs - cur.need) / (nxt.need - cur.need)) : 100;
     return `<div class="screen">
-      <div class="bar"><h2>My bedroom</h2>${wallet()}</div>
+      <div class="bar"><h2>${save.name ? esc(save.name) + '\'s bedroom' : 'My bedroom'}</h2>${wallet()}</div>
+      ${updateBtn()}
       <div class="hub">
         <div class="me"><div class="pair">${img(pjSprite(), 'kid')}${img('biscuit_sleep', 'dog')}</div>
           <div class="rank"><b>Rank ${r}: ${cur.title}</b><div class="meter"><i style="width:${pct}%"></i></div>
@@ -151,8 +191,10 @@ const SCREENS = {
       <h2 style="font-size:clamp(26px,5.5vh,44px)">Settings</h2>
       ${sw('sound', 'Sound effects', 'Creaks, snores and beeps')}${sw('music', 'Music', 'The sneaky tune')}
       ${sw('haptics', 'Vibration', 'Buzz on creaks and busts')}${sw('lefty', 'Left-handed mode', 'Swap the stick and the buttons')}
-      <div class="row" style="justify-content:center">${back()}<button class="btn red small" data-act="reset">${current && current.confirmReset ? 'Tap again to erase everything' : 'Reset progress'}</button></div>
-      <div class="muted small">Snack Raid v${VERSION}. Progress is saved on this device only. No accounts, no ads, no purchases.</div></div></div>`;
+      <div class="row" style="justify-content:center"><button class="btn small" data-act="go" data-arg="raiders">Raiders and save codes</button>${isApp() ? '<button class="btn small" data-act="checkupd">Check for updates</button>' : ''}</div>
+      <div id="updmsg" class="note"></div>${updateBtn()}
+      <div class="row" style="justify-content:center">${back()}<button class="btn red small" data-act="reset">${current && current.confirmReset ? 'Tap again to erase ' + esc(save.name || 'everything') : 'Reset progress'}</button></div>
+      <div class="muted small">Snack Raid v${VERSION}. Progress is saved on this device only. Use a save code to move it. No accounts, no ads, no purchases.</div></div></div>`;
   },
 };
 
@@ -220,7 +262,10 @@ export const UI = {
       play('click');
       this.act(el.dataset.act, el.dataset.arg);
     });
-    root().addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'code') this.act('redeem'); });
+    root().addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.target.id === 'code') this.act('redeem');
+      if (e.key === 'Enter' && e.target.id === 'rname') this.act('savename', current && current.arg);
+    });
   },
   show(name, arg) {
     current = { name, arg, confirmReset: current && current.name === name ? current.confirmReset : false };
@@ -234,10 +279,71 @@ export const UI = {
   popupOver(m) { this.stack = current; render(OVERLAYS.popup(m), 'dim'); current = { name: 'popup' }; },
   overlay(name, data) { current = { name, data, overlay: true }; render(OVERLAYS[name](data), 'dim'); },
   hide() { current = null; const r = root(); r.className = ''; r.innerHTML = ''; },
+  // The phone's Back button. Returns false when there is nowhere to go back to.
+  back() {
+    if (!current) return false;
+    if (current.name === 'popup') { this.act('closepop'); return true; }
+    if (current.overlay) {
+      if (current.name === 'pause') cb.onResume();
+      else if (current.name === 'results') cb.onQuit();
+      return true;
+    }
+    if (current.name === 'title') return false;
+    if (current.name === 'name' && current.arg) { this.show('raiders'); return true; }
+    confirmDel = null;
+    this.show(BACK[current.name] || 'hub');
+    return true;
+  },
+  // after an update check, show the button on screens that have one
+  updated() { if (current && ['title', 'hub', 'settings'].includes(current.name)) this.refresh(); },
   refresh() { if (current && !current.overlay && SCREENS[current.name]) render(SCREENS[current.name](current.arg), current.name === 'title' ? '' : 'solid'); },
   act(a, arg) {
     switch (a) {
-      case 'go': this.show(arg); break;
+      case 'go': confirmDel = null; this.show(arg); break;
+      case 'play': this.show(save.name ? 'hub' : 'name'); break;
+      case 'savename': {
+        const v = (document.getElementById('rname') || {}).value;
+        const ok = arg === 'new' ? newRaider(v) : setName(v);
+        if (!ok) { const m = document.getElementById('namemsg'); if (m) { m.textContent = 'Type a name with letters or numbers.'; m.style.color = 'var(--orange)'; } break; }
+        play('star');
+        if (arg === 'new' && cb.onSettings) cb.onSettings();
+        this.show(arg === 'rename' ? 'raiders' : 'hub');
+        break;
+      }
+      case 'rename': this.show('name', 'rename'); break;
+      case 'newraider': this.show('name', 'new'); break;
+      case 'pick': if (switchRaider(arg)) { play('star'); if (cb.onSettings) cb.onSettings(); } this.show('title'); break;
+      case 'delraider':
+        if (confirmDel === arg) { confirmDel = null; deleteRaider(arg); if (cb.onSettings) cb.onSettings(); } else confirmDel = arg;
+        this.refresh(); break;
+      case 'copycode': {
+        const code = saveCode(), box = document.getElementById('codeout'), m = document.getElementById('raidmsg');
+        box.value = code; box.style.display = '';
+        box.focus(); box.select();
+        let copied = false;
+        try { copied = document.execCommand('copy'); } catch (e) { /* older phones */ }
+        if (m) { m.style.color = ''; m.textContent = copied ? 'Copied! Paste it on the other phone.' : 'Here is your code. Select all of it and copy it.'; }
+        if (!copied && navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(() => { if (m) m.textContent = 'Copied! Paste it on the other phone.'; }).catch(() => {});
+        break;
+      }
+      case 'loadcode': {
+        const r = loadSaveCode((document.getElementById('codein') || {}).value);
+        play(r.ok ? 'wrapper' : 'tax');
+        if (r.ok) { if (cb.onSettings) cb.onSettings(); lastMsg = { title: 'Save code loaded', icon: kidFor(save.pajama), text: r.msg }; this.show('hub'); break; }
+        const m = document.getElementById('raidmsg'); if (m) { m.textContent = r.msg; m.style.color = 'var(--orange)'; }
+        break;
+      }
+      case 'checkupd': {
+        const m = document.getElementById('updmsg');
+        if (m) { m.style.color = ''; m.textContent = 'Checking...'; }
+        checkUpdate().then(r => {
+          this.updated();
+          const n = document.getElementById('updmsg');
+          if (n) { n.textContent = !r.ok ? 'Could not check. Are you online?' : r.update ? '' : 'You have the newest version.'; n.style.color = r.ok ? '' : 'var(--orange)'; }
+        });
+        break;
+      }
+      case 'getupd': getUpdate(); break;
       case 'fs': {
         const el = document.documentElement;
         try {
