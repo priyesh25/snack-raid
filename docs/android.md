@@ -2,12 +2,12 @@
 
 There are two ways to play on a phone.
 
-1. **The app (APK).** Download it from the GitHub releases page. Best on every phone: full screen, offline, Back button, update notices.
+1. **The app (APK).** Get it at https://priyesh25.github.io/snack-raid/apk/. Best on every phone: full screen, offline, Back button, update notices.
 2. **The website.** Open https://priyesh25.github.io/snack-raid/ in Chrome, then "Add to Home screen". No install needed.
 
 ## Install the app
 
-1. On the phone, open https://github.com/priyesh25/snack-raid/releases/latest/download/snack-raid.apk
+1. On the phone, open https://priyesh25.github.io/snack-raid/apk/ and tap **Download the app**.
 2. Chrome downloads it. Tap **Open**.
 3. The first time, Android says installs from Chrome are blocked. Tap **Settings**, turn on **Allow from this source**, and go back.
 4. Tap **Install**. Google Play Protect may warn that it does not know the app. Tap **Install anyway**. This happens with every app that is not on the Play Store.
@@ -21,7 +21,8 @@ Android 7 (2016) and newer. Phones and tablets.
 - **On every launch** the app asks the GitHub releases API for the newest tag. If it is newer, the title screen, the bedroom and Settings show a pink "Version X is ready. Tap to update" button.
 - **Settings > Check for updates** does the same check on demand.
 - **In the background**, about every 12 hours when online, `UpdateWorker` does the same check and posts one notification per new version. Tapping it downloads the APK.
-- The download link is always `releases/latest/download/snack-raid.apk`, so it never goes stale.
+- The update button and the notification download `releases/latest/download/snack-raid.apk`, so the link never goes stale.
+- The same APK also sits at the repo root as `snack-raid-X.Y.Z.apk` (only the newest), with a download page in `apk/`. New players use https://priyesh25.github.io/snack-raid/apk/.
 - Installing the new APK over the old one keeps all progress. This only works because every release is signed with the same key (see below).
 - Android 13 and newer ask once, on first launch, whether Snack Raid may send notifications. If the player says no, the in-game button still works.
 - The check sends nothing about the player. It reads a public web page.
@@ -41,7 +42,7 @@ Android 7 (2016) and newer. Phones and tablets.
 3. Add `docs/release-notes/vX.Y.Z.md`: a few short lines a kid can read.
 4. Push to `main`.
 
-The **Android** workflow (`.github/workflows/android.yml`) then runs the tests, builds the APK, signs it, checks the signature and creates the release. Installed apps see it on their next launch or background check. If the version already has a release, the workflow only builds (the APK is kept as a workflow artifact).
+The **Android** workflow (`.github/workflows/android.yml`) then runs the tests, builds the APK, signs it, checks the signature and creates the release. Then it copies the APK to the repo root as `snack-raid-X.Y.Z.apk`, deletes the old one, writes `apk/index.html` with `tools/apk-page.sh`, and pushes that commit to `main`. Pull before your next push. Installed apps see it on their next launch or background check. If the version already has a release, the workflow only builds (the APK is kept as a workflow artifact).
 
 ## The signing key
 

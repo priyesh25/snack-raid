@@ -21,6 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
 
       - uses: actions/setup-node@v4
         with:
@@ -102,3 +104,26 @@ jobs:
           notes=docs/release-notes/v$v.md
           [ -f "$notes" ] || { echo "Snack Raid $v" > "$RUNNER_TEMP/notes.md"; notes="$RUNNER_TEMP/notes.md"; }
           gh release create "v$v" dist/snack-raid.apk --title "Snack Raid $v" --notes-file "$notes" --target "$GITHUB_SHA"
+
+      # Keeps the released APK at the repo root as snack-raid-X.Y.Z.apk (only the newest one) and
+      # writes apk/index.html, so GitHub Pages serves it at priyesh25.github.io/snack-raid/apk/
+      - name: Put the APK at the site root
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.key.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=${{ steps.ver.outputs.version }}
+          f=snack-raid-$v.apk
+          if [ -f "$f" ]; then echo "$f is already in the repo"; exit 0; fi
+          gh release download "v$v" -p snack-raid.apk -O "$RUNNER_TEMP/$f"
+          git rm -q --ignore-unmatch 'snack-raid-*.apk'
+          cp "$RUNNER_TEMP/$f" "$f"
+          mkdir -p apk
+          sh tools/apk-page.sh "$v" > apk/index.html
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add "$f" apk/index.html
+          git commit -m "Android app $v at the site root"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main

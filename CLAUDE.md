@@ -16,7 +16,7 @@ Read this first when you pick the project up again.
 - `docs/context/`: the brief, ideas considered, decisions and their reasons.
 - `docs/codes.md`: promo and cheat codes in plain text. The repo is public, so these are public too.
 - `docs/android.md`: the Android app. Install, updates, signing, releases.
-- Live site: https://priyesh25.github.io/snack-raid/ (GitHub Pages from `main`). Repo: https://github.com/priyesh25/snack-raid
+- Live site: https://priyesh25.github.io/snack-raid/ (GitHub Pages from `main`). App download page: https://priyesh25.github.io/snack-raid/apk/ (the workflow keeps `snack-raid-X.Y.Z.apk` at the repo root). Repo: https://github.com/priyesh25/snack-raid
 - `android/`: the Capacitor project. `.github/workflows/android.yml`: builds and releases the APK.
 - `app/`: the game. `art/src/`: the scripts that draw every sprite. `tools/`: tests and generators.
 
