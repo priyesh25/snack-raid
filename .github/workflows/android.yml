@@ -42,8 +42,7 @@ jobs:
           java-version: 21
           cache: gradle
 
-      - uses: android-actions/setup-android@v3
-
+      # the runner image already has the Android SDK in $ANDROID_HOME; Gradle fetches any missing platform
       - name: Read the version
         id: ver
         run: |
