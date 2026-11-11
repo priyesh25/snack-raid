@@ -1,0 +1,18 @@
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Python and Node leftovers
+__pycache__/
+*.pyc
+node_modules/
+
+# local test output
+/out/
+/shots/
+
+# native wrapper build output (if you add Capacitor later)
+/android/app/build/
+/android/.gradle/
