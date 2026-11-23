@@ -13,7 +13,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let scale = 1, dpr = 1;
 let game = null, level = null, mode = 'menu'; // menu | play | paused | busted | results
-let last = 0, clock = 0;
+let last = 0, clock = 0, lastMode = 'idle';
 
 function resize() {
   dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -88,6 +88,12 @@ function frame(ts) {
     let inp = null;
     if (mode === 'play') {
       inp = input.sample();
+      if (inp.tap) {   // screen tap -> a spot in the house
+        const c = renderer.cam;
+        inp.tapWorld = { x: inp.tap.x / c.z + c.x, y: inp.tap.y / c.z + c.y, run: inp.tap.run };
+      }
+      // a tiny buzz when the stick crosses from tiptoe to walk to run, so you can feel your speed
+      if (game.p.mode !== lastMode) { if (lastMode !== 'idle' && game.p.mode !== 'idle') buzz(12); lastMode = game.p.mode; }
       // big frames are split so fast walkers cannot skip through thin things
       const steps = dt > 0.025 ? 2 : 1;
       for (let i = 0; i < steps && mode === 'play'; i++) {

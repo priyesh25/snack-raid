@@ -65,7 +65,7 @@ sh art/src/build_all.sh                        # redraw all art and re-export ap
 - No em dashes. No filler words.
 - In chat, Priyesh likes short bulleted answers. He asked not to be asked questions on the build: make a sensible assumption and write it down.
 
-## State of the build (v0.3.0)
+## State of the build (v0.4.0)
 
 - Playable: World 1 nights 1 to 8, the Sugar Dream coin rush (night 9), the Dad boss (night 10).
 - Works: rings and Zs, vision and light, cover sounds, doors, hiding, 6 cast members, 12 snacks, 3 Shh Moments, 8 gadgets, scoring, ranks, shop, pajamas, streak, codes, save, sound, offline.
@@ -78,6 +78,11 @@ sh art/src/build_all.sh                        # redraw all art and re-export ap
   - New raider sprites from `art/src/raider.py`: `<pajama sprite>_f0..f2` and `_b0..b2`.
   - Night lighting is a darkness layer in `render.js` (`darkness()`), with holes for lamps, the fridge and the raider.
   - Second pass (same v0.3.0, asked for more fun, busier Dad, Mom waking, only slightly harder): `dadPatrol()` in game.js (hallway light, extra room, toe stub, may wake Mom), babble voices (`voice()` in audio.js), new music loop and floor footsteps, particles, screen shake, danger glow, slow-mo PHEW (`g.fx` events drained by `Renderer.spawn()`).
+- v0.4.0 (asked for: real sounds not kiddish ones, night music, controls anywhere, better dragging):
+  - 20 recorded CC0 sounds in `app/assets/sfx/` (cut from ESC-50 by `tools/cut-sounds.py`, credits in `docs/sound-credits.md`). `REAL` in audio.js maps game sounds to them; the synth versions are the fallback.
+  - Ambience (crickets, clock) and a calm night tune; the chase music only when someone is awake.
+  - Tap-to-move (double tap runs) via `inp.tapWorld` and `p.auto` in game.js. A drag cancels it.
+  - Note: Priyesh reported "controls only work on the left half". That was the 0.2.0 app: 0.3.0 had not been pushed yet. Pushing from this machine is blocked, he pushes with `git push`.
 - Priyesh asked whether it could be 3D. Answer given: yes, but it means a rebuild (Three.js keeps the web and APK path; Godot or Unity for a full native 3D game). Not started.
 - All tests pass. It has been run in headless Chromium at desktop and phone sizes. It has not been played by a real kid yet, and it has not been tried on a real Android phone.
 

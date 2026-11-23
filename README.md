@@ -9,9 +9,7 @@ A funny stealth game for kids aged 10 to 12. It is midnight, you are hungry, and
 - **Made for landscape phones and tablets.** Also plays with a keyboard on a laptop.
 - **Kid-safe.** No ads, no purchases, no accounts, no chat. Progress stays on the device. Up to 4 named raiders per device, and save codes to move one to another phone.
 
-Version 0.3.0: all of World 1, an Android app, and a harder, livelier game.
-
-**Newest Android app, one tap:** https://priyesh25.github.io/snack-raid/get/ (always the latest release)
+Version 0.4.0: all of World 1, an Android app, real sounds and night music.
 
 **Get the Android app:** https://priyesh25.github.io/snack-raid/apk/
 
@@ -70,7 +68,7 @@ After each release, bump `VERSION` in `app/js/data.js` and `CACHE` in `app/sw.js
 
 ## What is built, and what is not yet
 
-**In version 0.3.0**
+**In version 0.4.0**
 
 - World 1, Home Sweet Home: 8 nights, a Sugar Dream bonus night and the boss night
 - Noise rings, Zs, vision cones, light zones, cover sounds, hiding spots, doors, creaky boards, toy bricks
@@ -104,4 +102,5 @@ python3 tools/raiders-test.py out/   # raiders, save codes, Back button, update 
 ## Credits
 
 - Game design, code and art: made with Claude for Priyesh, November 2026.
+- Sounds: recorded effects are CC0 clips from the ESC-50 dataset. See [docs/sound-credits.md](docs/sound-credits.md).
 - Fonts: Fredoka and Baloo 2, both under the SIL Open Font License. The license files sit next to the fonts in `app/assets/fonts/`.

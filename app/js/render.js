@@ -386,6 +386,14 @@ export class Renderer {
   }
 
   topFx(c, g, t) {
+    // tap-to-move: dotted path and a pulsing target
+    const au = g.p.auto;
+    if (au) {
+      c.fillStyle = 'rgba(76,203,122,0.55)';
+      for (const [x, y] of au.path) { c.beginPath(); c.arc(x, y, 4, 0, TAU); c.fill(); }
+      const r = 16 + Math.sin(t * 8) * 4;
+      c.beginPath(); c.ellipse(au.goal.x, au.goal.y, r, r * 0.6, 0, 0, TAU); c.strokeStyle = au.run ? ORANGE : GREEN; c.lineWidth = 4; c.stroke();
+    }
     // cover sound: Dad's snore
     const dad = g.npc('dad');
     if (dad && g.snoreOn) {

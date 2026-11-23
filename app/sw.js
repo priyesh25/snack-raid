@@ -1,6 +1,6 @@
 // Snack Raid service worker: caches the whole game so it works offline after the first visit.
 // Bump CACHE when you ship a new version.
-const CACHE = 'snack-raid-v0.3.0';
+const CACHE = 'snack-raid-v0.4.0';
 const FILES = [
   './', './index.html', './manifest.webmanifest', './css/style.css',
   './js/main.js', './js/ui.js', './js/game.js', './js/world.js', './js/render.js', './js/input.js', './js/gfx.js',
@@ -9,6 +9,7 @@ const FILES = [
   './assets/fonts/fredoka-latin-600-normal.woff2', './assets/fonts/fredoka-latin-700-normal.woff2',
   './assets/fonts/baloo-2-latin-800-normal.woff2',
   './assets/img/keyart.jpg', './assets/img/icon-192.png', './assets/img/icon-512.png',
+  ...['bark', 'woofwoof', 'snore', 'snort', 'cough', 'cry', 'creak', 'door', 'thump', 'glass', 'pssht', 'alarm', 'flush', 'water', 'thunder', 'click', 'laugh', 'step', 'crickets', 'tick'].map(n => './assets/sfx/' + n + '.mp3'),
 ];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {

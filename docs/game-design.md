@@ -104,6 +104,11 @@ How far you push sets how fast and how loud you are.
 - **Drop.** Swipe down on a snack you carry to set it down quietly.
 - **Ride.** Hop on Dusty the robo-vac for a silent lift along its route.
 
+**Tap to move**
+
+- Tap a spot and the raider walks there by the shortest path. Tap twice quickly to run there.
+- Dragging anywhere on the screen takes over at once.
+
 **Feel**
 
 - The raider's body shows the speed: knees high and arms out on tiptoe, pajama feet slapping on a run.

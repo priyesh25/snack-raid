@@ -77,3 +77,9 @@ Everything is in `app/`. Plain ES modules, no build step.
 - Variety needs `opts.variety` (main.js passes it). Tests turn it on in the fuzz test and check every `LOOSE_SPOTS` entry is reachable.
 - Rendering: `darkness()` draws the night layer between the world and the overlays. Cones, rings and cover waves moved to `topFx()` so they stay readable.
 - Input: the drag stick starts anywhere that is not a button.
+
+## v0.4.0 changes
+
+- Sound: `app/assets/sfx/*.mp3` are loaded and decoded on the first tap (`loadSamples()` in audio.js). `play(name)` tries `REAL[name]` first, then the synthesized `SFX[name]`. Recut with `tools/cut-sounds.py`.
+- Ambience: crickets and a clock loop under the music (`ambience()`), turned down while someone is awake.
+- Tap-to-move: `Input.up()` turns a short, still tap into `edge.tap`; main.js converts it to world space with the camera; `Game.updPlayer()` follows a path at walk speed (run on a double tap). Any drag cancels it.

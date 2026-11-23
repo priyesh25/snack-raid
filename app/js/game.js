@@ -243,7 +243,7 @@ export class Game {
     this.stats.woke.add(n.id);
     if (n.kind === 'baby') { n.state = 'cry'; n.t = 10; n.cryTick = 0.3; this.toast('Baby Boo is awake!'); return; }
     n.state = 'rising'; n.t = 0.8;
-    if (n.kind === 'adult') { n.wokeByNoise = true; n.peek = 0; this.sfx('huh', n.x, n.y); this.say(n, pick(n.id === 'mom' ? LINES.momWake : LINES.dadWake), 2.6); this.toast((n.id === 'mom' ? 'Mom' : 'Dad') + ' woke up!'); }
+    if (n.kind === 'adult') { n.wokeByNoise = true; n.peek = 0; this.sfx(n.id === 'dad' ? 'wakeDad' : 'wakeMom', n.x, n.y); this.say(n, pick(n.id === 'mom' ? LINES.momWake : LINES.dadWake), 2.6); this.toast((n.id === 'mom' ? 'Mom' : 'Dad') + ' woke up!'); }
     else this.sfx('whine', n.x, n.y);
   }
 
@@ -389,7 +389,7 @@ export class Game {
     const lv = this.lv, mine = id => id !== lv.craving;
     if (this.fridge.snacks.some(mine) || !this.jar.snacks.some(mine)) {
       return [{ to: SPOTS.fridgeStand, then: 'wait', t: 3.2, face: UP, fx: () => { if (!this.fridge.open) { this.fridge.open = true; this.fridge.byDad = true; this.fridge.t = -999; this.sfx('fridge', n.x, n.y); } this.say(n, pick(LINES.dadSnack), 2.5); },
-        done: () => { this.dadEats(this.fridge.snacks); this.fridge.open = false; this.fridge.byDad = false; this.sfx('fridge', n.x, n.y); } }];
+        done: () => { this.sfx('chuckle', n.x, n.y); this.dadEats(this.fridge.snacks); this.fridge.open = false; this.fridge.byDad = false; this.sfx('fridge', n.x, n.y); } }];
     }
     return [{ to: [6, 11], then: 'wait', t: 2.6, face: UP, fx: () => this.say(n, pick(LINES.dadSnack), 2.5), done: () => this.dadEats(this.jar.snacks) }];
   }
@@ -623,6 +623,22 @@ export class Game {
     const p = this.p, w = this.world;
     if (p.stun > 0) { p.stun -= dt; p.mode = 'idle'; return; }
     if (this.shh) { p.mode = 'idle'; return; }
+    // tap to move: the raider walks (or runs, on a double tap) to the spot by the shortest path
+    if (inp.tapWorld && !this.shh) {
+      const tx = Math.floor(inp.tapWorld.x / T), ty = Math.floor(inp.tapWorld.y / T);
+      if (p.inBed) this.leaveBed();
+      if (p.hidden) this.unhide();
+      if (p.riding) this.hopOff();
+      const path = this.world.path(Math.floor(p.x / T), Math.floor(p.y / T), tx, ty, { noDoors: true });
+      p.auto = path && path.length ? { path, run: inp.tapWorld.run, goal: { x: inp.tapWorld.x, y: inp.tapWorld.y } } : null;
+      if (!p.auto) this.float('No way through', inp.tapWorld.x, inp.tapWorld.y, '#FFA630');
+    }
+    if (Math.hypot(inp.mx, inp.my) > 0.12) p.auto = null;   // touching the stick always wins
+    if (p.auto && !p.inBed && !p.hidden && !p.riding) {
+      const a = p.auto, [wx, wy] = a.path[0], d = Math.hypot(wx - p.x, wy - p.y);
+      if (d < 10) { a.path.shift(); if (!a.path.length) p.auto = null; }
+      if (p.auto) { const k = a.run ? 1 : 0.62; inp = { ...inp, mx: (wx - p.x) / d * k, my: (wy - p.y) / d * k }; }
+    }
     let mag = inp.peek ? 0 : Math.hypot(inp.mx, inp.my);
     if (p.slide) return this.updSlide(dt);
     if (p.inBed) {

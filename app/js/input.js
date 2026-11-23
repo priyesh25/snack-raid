@@ -64,7 +64,7 @@ export class Input {
     const b = this.hit(x, y);
     if (b) { this.held.set(e.pointerId, b); this.press(b); return; }
     // the stick starts wherever a finger lands, anywhere on the screen except a button
-    if (!this.joy) this.joy = { id: e.pointerId, ox: x, oy: y, x, y, lt: e.timeStamp };
+    if (!this.joy) this.joy = { id: e.pointerId, ox: x, oy: y, x, y, lt: e.timeStamp, t0: e.timeStamp, sx: x, sy: y, far: 0 };
   }
   // Drag to steer. The stick follows the finger: it never trails more than one stick-length behind,
   // and a quick swipe in a new direction turns the raider at once, keeping the speed.
@@ -75,6 +75,7 @@ export class Input {
     const mx = x - j.x, my = y - j.y, md = Math.hypot(mx, my), dt = Math.max(1, e.timeStamp - (j.lt || 0)) / 1000;
     const px = j.x - j.ox, py = j.y - j.oy, pm = Math.hypot(px, py);   // where the stick pointed before this move
     j.x = x; j.y = y; j.lt = e.timeStamp;
+    j.far = Math.max(j.far, Math.hypot(x - j.sx, y - j.sy));
     let vx = j.x - j.ox, vy = j.y - j.oy, vm = Math.hypot(vx, vy);
     if (md > 2 && md / dt > TURN_SPEED && pm > 8) {
       const cos = (mx * px + my * py) / (md * pm);
@@ -87,7 +88,16 @@ export class Input {
     if (vm > JOY_R) { j.ox = x - vx / vm * JOY_R; j.oy = y - vy / vm * JOY_R; }
   }
   up(e) {
-    if (this.joy && this.joy.id === e.pointerId) this.joy = null;
+    if (this.joy && this.joy.id === e.pointerId) {
+      // a quick tap that did not drag: walk there by yourself (tap twice quickly to run there)
+      const j = this.joy;
+      if (e.timeStamp - j.t0 < 260 && j.far < 16) {
+        const dbl = this.lastTap && e.timeStamp - this.lastTap.t < 380 && Math.hypot(j.sx - this.lastTap.x, j.sy - this.lastTap.y) < 70;
+        this.edge.tap = { x: j.sx, y: j.sy, run: !!dbl };
+        this.lastTap = { t: e.timeStamp, x: j.sx, y: j.sy };
+      }
+      this.joy = null;
+    }
     const b = this.held.get(e.pointerId);
     if (b) { this.held.delete(e.pointerId); this.release(b); }
   }
@@ -122,7 +132,7 @@ export class Input {
   sample() {
     const [mx, my] = this.stick();
     const s = { mx, my, actionHeld: this.actionHeld, peek: this.peekHeld, ...this.edge };
-    this.edge = { actionDown: false, actionUp: false, action2Down: false, gadget: -1 };
+    this.edge = { actionDown: false, actionUp: false, action2Down: false, gadget: -1, tap: null };
     return s;
   }
 }
