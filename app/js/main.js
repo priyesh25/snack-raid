@@ -6,7 +6,7 @@ import { Input, VIEW } from './input.js';
 import { loadSprites, setDpr } from './gfx.js';
 import { save, persist, applyResult, carrySlots } from './save.js';
 import { UI } from './ui.js';
-import { play, music, setTense, buzz, unlockAudio } from './audio.js';
+import { play, music, setTense, buzz, unlockAudio, voice } from './audio.js';
 import { isApp, checkUpdate } from './native.js';
 
 const canvas = document.getElementById('game');
@@ -31,13 +31,15 @@ const toLogical = (cx, cy) => { const r = canvas.getBoundingClientRect(); return
 const input = new Input(canvas, toLogical);
 const renderer = new Renderer(canvas);
 
-function startNight(n) {
+let twist = null;
+function startNight(n, tw) {
   level = LEVELS[n - 1];
+  if (tw !== undefined) twist = tw;
   const pj = PAJAMAS.find(p => p.id === save.pajama) || PAJAMAS[0];
   game = new Game(level, {
     loadout: save.loadout.slice(), gadgets: save.gadgets, cheats: save.cheats, carrySlots: carrySlots(),
-    knownCreaks: save.creaks[n] || [], sprite: pj.sprite,
-    hooks: { sfx: play, buzz, onBusted, onEnd },
+    knownCreaks: save.creaks[n] || [], sprite: pj.sprite, variety: true, twist,
+    hooks: { sfx: play, buzz, voice, onBusted, onEnd },
   });
   mode = 'play';
   input.reset(); input.enabled = true; input.lefty = save.settings.lefty;

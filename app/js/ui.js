@@ -1,5 +1,5 @@
 // Snack Raid: menus and overlays, built as plain HTML over the canvas.
-import { LEVELS, SNACKS, GADGETS, RANKS, PAJAMAS, TYPE_COLOR, STASH_HINT, VERSION, gadgetCharges } from './data.js';
+import { LEVELS, SNACKS, GADGETS, RANKS, PAJAMAS, TYPE_COLOR, STASH_HINT, VERSION, gadgetCharges, TWISTS, rollTwist } from './data.js';
 import { save, persist, resetSave, rank, gadgetSlots, carrySlots, levelInfo, totalStars, unlocked, lockReason, claimDaily,
   ownGadget, giveGadget, buyGadget, upgradeCost, upgradeGadget, toggleLoadout,
   setName, raiders, switchRaider, newRaider, deleteRaider, MAX_RAIDERS, saveCode, loadSaveCode } from './save.js';
@@ -13,7 +13,7 @@ const img = (name, cls = '') => `<img class="${cls}" src="${spriteUrl(name)}" al
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const num = n => Number(n).toLocaleString('en-US');
 const pjSprite = () => (PAJAMAS.find(p => p.id === save.pajama) || PAJAMAS[0]).sprite;
-let cb = {}, current = null, lastMsg = null, confirmDel = null;
+let cb = {}, current = null, lastMsg = null, confirmDel = null, twist = null, twistFor = null;
 const updateBtn = () => { const u = pendingUpdate(); return u ? `<button class="btn pink" data-act="getupd">Version ${esc(u.version)} is ready. Tap to update</button>` : ''; };
 const kidFor = pj => (PAJAMAS.find(p => p.id === pj) || PAJAMAS[0]).sprite;
 // where the phone's Back button goes from each screen
@@ -105,6 +105,7 @@ const SCREENS = {
 
   brief: n => {
     const l = LEVELS[n - 1], info = levelInfo(n), slots = gadgetSlots();
+    if (twistFor !== n) { twist = rollTwist(n, !!info.cleared); twistFor = n; }
     if (l.gift && !ownGadget(l.gift)) { giveGadget(l.gift); lastMsg = { title: 'New gadget!', icon: 'gad_' + l.gift, text: GADGETS[l.gift].name + ': ' + GADGETS[l.gift].desc }; }
     save.loadout = save.loadout.filter(id => ownGadget(id) && GADGETS[id].ready).slice(0, slots);
     const owned = Object.keys(GADGETS).filter(id => ownGadget(id) && GADGETS[id].ready);
@@ -115,10 +116,12 @@ const SCREENS = {
       <h2 style="font-size:clamp(26px,5.5vh,46px)">${l.type === 'boss' ? 'Boss' : l.type === 'dream' ? 'Bonus' : 'Night ' + n}: ${esc(l.name)}</h2>
       <div class="muted">${esc(l.blurb)}</div>
       ${want.length ? `<div><b>Tonight's Craving List</b><div class="icons">${want.map((id, i) => `<figure class="${i ? '' : 'first'}">${img('snack_' + id)}${SNACKS[id].name}${i ? '' : ' (must)'}</figure>`).join('')}</div></div>` : ''}
+      ${twist ? `<div class="bubble">${img(TWISTS[twist].icon, 'tw')} <b>Night Twist: ${TWISTS[twist].name}.</b> ${esc(TWISTS[twist].desc)}</div>` : ''}
       ${home.length ? `<div><b>Who is home</b><div class="icons who">${home.map(h => img(who[h])).join('')}</div></div>` : ''}
       ${l.stash ? `<div class="small ${info.wrapper ? 'muted' : 'note'}">${info.wrapper ? 'Golden Wrapper already found.' : 'Rumor: a Secret Stash is hidden ' + STASH_HINT[l.stash] + '.'}</div>` : ''}
       ${owned.length && l.type !== 'dream' ? `<div><b>Pick your gadgets</b> <span class="muted small">(${slots} slot${slots > 1 ? 's' : ''}, carry ${carrySlots()} snacks)</span>
         <div class="load">${owned.map(id => `<button class="gchip ${save.loadout.includes(id) ? 'on' : ''}" data-act="load" data-arg="${id}">${img('gad_' + id)}${GADGETS[id].name}</button>`).join('')}</div></div>` : ''}
+      ${home.includes('dad') && l.type !== 'boss' && !l.home.dad.sofa ? '<div class="small muted">Watch out: Dad gets hungry at night too. He eats any snack you leave behind.</div>' : ''}
       <div class="row" style="justify-content:center">${back('map')}<button class="btn big green" data-act="start" data-arg="${n}">SNEAK OUT</button></div>
     </div></div>`;
   },
@@ -208,12 +211,13 @@ const OVERLAYS = {
 
   busted: d => {
     const who = { mom: 'Mom', dad: 'Dad', alarm: 'The 6:00 alarm' }[d.by] || 'Someone';
-    const why = d.why === 'bed' ? 'Mom checked your bed. It was empty.' : d.why === 'alarm' ? 'The alarm rang and you were not in bed.' : who + ' saw you out of bed.';
+    const why = d.why === 'bed' ? who + ' checked your bed. It was empty.' : d.why === 'alarm' ? 'The alarm rang and you were not in bed.' : d.why === 'peek' ? who + ' peeked out from under the blanket and saw you.' : who + ' saw you out of bed.';
     return `<div class="screen center"><div class="panel pop">
       <div class="stamp">BUSTED!</div>
       <div class="family">${d.by === 'dad' ? img('dad_awake') : d.by === 'alarm' ? '' : img('mom')}${img(pjSprite())}</div>
       <div>${why}</div>
-      <div class="bubble">"${esc(d.excuse)}"</div>
+      ${d.quip ? `<div class="bubble">${who}: "${esc(d.quip)}"</div>` : ''}
+      <div class="muted">You: "${esc(d.excuse)}"</div>
       ${d.canExcuse && save.cards > 0 ? `<button class="btn big pink" data-act="excuse">Play an Excuse Card (${save.cards})</button><div class="muted small">Back to bed. You lose what is in your hands, and one hour.</div>` :
         d.canExcuse ? '<div class="muted small">No Excuse Cards left. Buy them in the Toy Chest.</div>' : ''}
       <div class="row" style="justify-content:center"><button class="btn green" data-act="retry">Try again</button><button class="btn ghost" data-act="giveup">Back to bedroom</button></div></div></div>`;
@@ -225,6 +229,9 @@ const OVERLAYS = {
     if (res.dream) scene = 'What a dream. Your pillow is a little bit chewed.';
     else if (!res.craving) scene = 'You went to bed hungry. Your tummy rumbles all through breakfast.';
     else if (res.framedDog) { scene = 'Biscuit has crumbs on his nose. Everyone looks at him.'; fam = ['mom', 'biscuit', 'dad_awake']; }
+    else if (res.dadAte && res.dadAte.length && res.woke.includes('mom') && res.woke.includes('dad')) scene = 'Mom and Dad are both yawning. Dad has ' + SNACKS[res.dadAte[0]].name.toLowerCase() + ' crumbs in his mustache. Mom is not amused.';
+    else if (res.dadAte && res.dadAte.length) scene = 'Dad has ' + SNACKS[res.dadAte[0]].name.toLowerCase() + ' crumbs in his mustache. He winks at you.';
+    else if (res.woke.includes('dad') && res.woke.includes('mom')) scene = 'Mom glares at Dad. Dad glares at the dog. You eat your cereal very quietly.';
     else if (res.woke.includes('dad')) scene = 'Dad yawns into his coffee with huge eye bags.';
     else if (res.woke.includes('mom')) scene = 'Mom squints at you over her tea. She suspects something.';
     else if (res.ghost) scene = 'Mom stares at the empty spot in the fridge. Dad shrugs. You whistle.';
@@ -354,7 +361,7 @@ export const UI = {
       }
       case 'brief': if (unlocked(+arg)) { if (cb.onLeaveNight) cb.onLeaveNight(); this.show('brief', +arg); } break;
       case 'load': toggleLoadout(arg); this.refresh(); break;
-      case 'start': cb.onStart(+arg); break;
+      case 'start': twistFor = null; cb.onStart(+arg, twist); break;
       case 'buy': if (buyGadget(arg)) { play('coin'); persist(); } this.refresh(); break;
       case 'up': if (upgradeGadget(arg)) play('star'); this.refresh(); break;
       case 'card': if (save.coins >= 100 && save.cards < 3) { save.coins -= 100; save.cards++; persist(); play('coin'); } this.refresh(); break;

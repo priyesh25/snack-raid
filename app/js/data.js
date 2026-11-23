@@ -1,6 +1,6 @@
 // Snack Raid: game data. Numbers follow docs/game-design.md.
 export const T = 64; // tile size in logical pixels
-export const VERSION = '0.2.0';
+export const VERSION = '0.3.0';
 
 // ---------------------------------------------------------------- snacks
 export const SNACKS = {
@@ -208,7 +208,7 @@ export const LEVELS = [
       'Grab the cookie from the jar, then take it back to your bed.'] },
   { n: 2, name: 'The Third Stair', craving: 'juice', extras: ['cookie', 'chocolate'], gift: 'socks',
     blurb: 'Wood floors creak. Move when Dad snores.',
-    snacks: [{ id: 'juice', src: 'loose', at: [4.5, 10.5] }, { id: 'cookie', src: 'jar' }, { id: 'chocolate', src: 'loose', at: [16.5, 3.5] }],
+    snacks: [{ id: 'juice', src: 'loose', at: [4.5, 10.5] }, { id: 'cookie', src: 'jar' }, { id: 'chocolate', src: 'loose', at: [16.5, 3.5], fixed: true }],
     home: { dad: {} }, doorsOpen: ['kid', 'parents'],
     creaks: [[11, 6], [14, 6], [15, 6], [17, 6], [21, 7], [25, 8], [26, 9], [25, 11]],
     stash: 'sofa',
@@ -280,3 +280,25 @@ export const STASH_HINT = {
   tv: 'behind the TV', armchair: 'down the side of the armchair', bsink: 'in the bathroom cabinet',
   nshelf: 'on the nursery toy shelf', mdesk: 'in Mika\'s desk drawer', toilet: 'taped behind the toilet',
 };
+
+// ---------------------------------------------------------------- variety
+// Spots a loose snack can move to, so a replay is never quite the same night.
+export const LOOSE_SPOTS = [
+  [6.5, 14.6], [17, 12.4], [4.5, 10.5], [7.5, 10.5], [21, 10.5], [17, 17.3], [25.5, 13.5], [2.5, 13.5],
+  [9.5, 15.5], [15.5, 6.5], [3.5, 16.5], [21.5, 15.5], [26.5, 11.5], [8.5, 6.5], [19.5, 14.5],
+];
+
+// Night Twists: one may roll in the briefing (never on nights 1 and 2, the dream or the boss).
+export const TWISTS = {
+  thunder: { name: 'Thunderstorm', icon: 'gad_goggles', desc: 'Thunder hides your noise. Lightning shows you to anyone awake.' },
+  powercut: { name: 'Power Cut', icon: 'gad_clicker', desc: 'Pitch dark. Nobody sees far, but the fridge has no light and no alarm.' },
+  sleepwalk: { name: 'Sleepwalking Dad', icon: 'dad', desc: 'Dad wanders with his eyes shut. Bump into him and he wakes up.' },
+  party: { name: 'Party Leftovers', icon: 'snack_cake', desc: 'Extra cake downstairs, and balloons all over the floor. Pop one and it is LOUD.' },
+};
+export function rollTwist(n, cleared) {
+  const lv = LEVELS[n - 1];
+  if (n < 3 || lv.type) return null;
+  if (Math.random() > (cleared ? 0.75 : 0.35)) return null;
+  const ids = Object.keys(TWISTS).filter(id => id !== 'sleepwalk' || (lv.home.dad && !lv.home.dad.sofa));
+  return ids[Math.floor(Math.random() * ids.length)];
+}

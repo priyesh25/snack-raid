@@ -65,11 +65,20 @@ sh art/src/build_all.sh                        # redraw all art and re-export ap
 - No em dashes. No filler words.
 - In chat, Priyesh likes short bulleted answers. He asked not to be asked questions on the build: make a sensible assumption and write it down.
 
-## State of the build (v0.2.0)
+## State of the build (v0.3.0)
 
 - Playable: World 1 nights 1 to 8, the Sugar Dream coin rush (night 9), the Dad boss (night 10).
 - Works: rings and Zs, vision and light, cover sounds, doors, hiding, 6 cast members, 12 snacks, 3 Shh Moments, 8 gadgets, scoring, ranks, shop, pajamas, streak, codes, save, sound, offline.
 - v0.2.0 adds the Android app, named raiders (up to 4 per device), save codes, and update checks with a notification.
+- v0.3.0 (asked for: harder, Dad more fun when awake, every night different, steer from anywhere):
+  - Difficulty lives in `TUNE` at the top of `app/js/game.js`. Nights are 2:24. Dad 3 Zs, Mom 2, Zs regrow every 12 s, sleepers at 1 Z peek.
+  - Dad raids the fridge once a night and whenever woken, eats one non-Craving snack, says lines, checks the bed.
+  - Variety: loose snacks move (`LOOSE_SPOTS`), 3 random creaky boards per try, random snore beat, random Mom bathroom trips. Night Twists roll in the briefing from Night 3 (`TWISTS`, `rollTwist` in data.js).
+  - Drag control anywhere: `app/js/input.js`. The stick is leashed to the finger, and a fast swipe over 60 degrees off turns at once.
+  - New raider sprites from `art/src/raider.py`: `<pajama sprite>_f0..f2` and `_b0..b2`.
+  - Night lighting is a darkness layer in `render.js` (`darkness()`), with holes for lamps, the fridge and the raider.
+  - Second pass (same v0.3.0, asked for more fun, busier Dad, Mom waking, only slightly harder): `dadPatrol()` in game.js (hallway light, extra room, toe stub, may wake Mom), babble voices (`voice()` in audio.js), new music loop and floor footsteps, particles, screen shake, danger glow, slow-mo PHEW (`g.fx` events drained by `Renderer.spawn()`).
+- Priyesh asked whether it could be 3D. Answer given: yes, but it means a rebuild (Three.js keeps the web and APK path; Godot or Unity for a full native 3D game). Not started.
 - All tests pass. It has been run in headless Chromium at desktop and phone sizes. It has not been played by a real kid yet, and it has not been tried on a real Android phone.
 
 ## Next steps, in order

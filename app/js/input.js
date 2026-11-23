@@ -13,7 +13,8 @@ export const BTN = {
   peek: { rx: 152, y: 58, r: 32, fixed: true },
   pause: { rx: 68, y: 58, r: 32, fixed: true },
 };
-const JOY_R = 120; // big enough that a small phone still has room for a gentle tiptoe push
+const JOY_R = 110;        // full push, in logical pixels
+const TURN_SPEED = 260;   // a swipe faster than this (pixels a second) turns the raider at once
 
 export class Input {
   constructor(canvas, toLogical) {
@@ -62,14 +63,28 @@ export class Input {
     const [x, y] = this.toLogical(e.clientX, e.clientY);
     const b = this.hit(x, y);
     if (b) { this.held.set(e.pointerId, b); this.press(b); return; }
-    const joySide = this.lefty ? x > VIEW.w / 2 : x < VIEW.w / 2;
-    if (joySide && !this.joy) this.joy = { id: e.pointerId, ox: x, oy: y, x, y };
+    // the stick starts wherever a finger lands, anywhere on the screen except a button
+    if (!this.joy) this.joy = { id: e.pointerId, ox: x, oy: y, x, y, lt: e.timeStamp };
   }
+  // Drag to steer. The stick follows the finger: it never trails more than one stick-length behind,
+  // and a quick swipe in a new direction turns the raider at once, keeping the speed.
   move(e) {
     if (!this.enabled || !this.joy || this.joy.id !== e.pointerId) return;
     e.preventDefault();
-    const [x, y] = this.toLogical(e.clientX, e.clientY);
-    this.joy.x = x; this.joy.y = y;
+    const j = this.joy, [x, y] = this.toLogical(e.clientX, e.clientY);
+    const mx = x - j.x, my = y - j.y, md = Math.hypot(mx, my), dt = Math.max(1, e.timeStamp - (j.lt || 0)) / 1000;
+    const px = j.x - j.ox, py = j.y - j.oy, pm = Math.hypot(px, py);   // where the stick pointed before this move
+    j.x = x; j.y = y; j.lt = e.timeStamp;
+    let vx = j.x - j.ox, vy = j.y - j.oy, vm = Math.hypot(vx, vy);
+    if (md > 2 && md / dt > TURN_SPEED && pm > 8) {
+      const cos = (mx * px + my * py) / (md * pm);
+      if (cos < 0.5) {   // swiped more than 60 degrees away from where the stick points: turn now
+        const keep = Math.max(pm, JOY_R * 0.55);
+        j.ox = x - mx / md * keep; j.oy = y - my / md * keep;
+        vx = j.x - j.ox; vy = j.y - j.oy; vm = keep;
+      }
+    }
+    if (vm > JOY_R) { j.ox = x - vx / vm * JOY_R; j.oy = y - vy / vm * JOY_R; }
   }
   up(e) {
     if (this.joy && this.joy.id === e.pointerId) this.joy = null;

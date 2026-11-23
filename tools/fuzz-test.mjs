@@ -4,7 +4,7 @@
 import { Game } from '../app/js/game.js';
 import { LEVELS, T, GADGETS } from '../app/js/data.js';
 
-const RUNS = +process.argv[2] || 4;
+const RUNS = +process.argv[2] || 5;
 let seed = 12345;
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 const ready = Object.keys(GADGETS).filter(id => GADGETS[id].ready);
@@ -15,7 +15,8 @@ for (const lv of LEVELS) {
     const cheats = run % 4 === 3 ? { ghost: true, sleepy: true, gadgetgalore: true, deeppockets: true, xray: true, easysnacks: true, ninja: true, slowclock: false } : {};
     const loadout = [...ready].sort(() => rnd() - 0.5).slice(0, 3);
     let ended = null, cards = 2;
-    const g = new Game(lv, { loadout, gadgets: { socks: 3, goggles: 2 }, carrySlots: 2 + (run % 3), cheats, knownCreaks: [],
+    const twist = [null, 'thunder', 'powercut', 'sleepwalk', 'party'][run % 5];
+    const g = new Game(lv, { loadout, gadgets: { socks: 3, goggles: 2 }, carrySlots: 2 + (run % 3), cheats, knownCreaks: [], variety: true, twist: lv.home && lv.home.dad && !lv.type ? twist : null,
       hooks: { onEnd: r => { ended = r; }, onBusted: () => { busts++; } } });
     const walk = [];
     for (let y = 0; y < g.world.H; y++) for (let x = 0; x < g.world.W; x++) if (g.world.walkable(x, y)) walk.push([x, y]);

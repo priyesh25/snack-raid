@@ -1,10 +1,11 @@
 // Snack Raid: canvas rendering. World first, then the HUD in 1280 x 720 screen space.
-import { T, SNACKS, GADGETS, LIGHTS, COUNTER, SPOTS } from './data.js';
-import { spr } from './gfx.js';
+import { T, SNACKS, GADGETS, LIGHTS, COUNTER, SPOTS, TWISTS } from './data.js';
+import { spr, has } from './gfx.js';
 import { VIEW, BTN, JOY_R } from './input.js';
 
 const NAVY = '#141A3C', MILK = '#FFF6E5', GLOW = '#FFE08A', MOON = '#7FB4FF', ORANGE = '#FFA630', RED = '#FF5A4F', GREEN = '#4CCB7A', PINK = '#FF7EB6';
 const S = 0.34; // sprite scale for people
+const WINDOWS = [[3, 0], [9, 0], [15, 0], [23, 0], [3, 9], [20, 9]];
 const TAU = Math.PI * 2;
 
 function rr(c, x, y, w, h, r) {
@@ -237,11 +238,13 @@ function drawEye(c, x, y, v) {
 
 // ------------------------------------------------------------ the renderer
 export class Renderer {
-  constructor(canvas) { this.cv = canvas; this.c = canvas.getContext('2d'); this.static = null; this.forGame = null; this.cam = { x: 0, y: 0, z: 1 }; }
+  constructor(canvas) { this.cv = canvas; this.c = canvas.getContext('2d'); this.static = null; this.forGame = null; this.cam = { x: 0, y: 0, z: 1 }; this.parts = []; this.shake = 0; this.lastT = 0; }
 
   frame(g, inp, t, extra = {}) {
     const c = this.c;
-    if (this.forGame !== g) { this.static = buildStatic(g); this.forGame = g; this.cam.z = 1; }
+    if (this.forGame !== g) { this.static = buildStatic(g); this.forGame = g; this.cam.z = 1; this.parts = []; this.shake = 0; }
+    const dt = Math.min(0.05, Math.max(0, t - this.lastT)); this.lastT = t;
+    this.spawn(g);
     const W = VIEW.w, H = VIEW.h, w = g.world, p = g.p;
     const mapW = w.W * T, mapH = w.H * T;
     const peek = extra.peek;
@@ -254,12 +257,27 @@ export class Renderer {
     this.cam.x += (cx - this.cam.x) * (peek ? 1 : 0.18); this.cam.y += (cy - this.cam.y) * (peek ? 1 : 0.18);
     if (Math.abs(cx - this.cam.x) > 400) { this.cam.x = cx; this.cam.y = cy; }
     c.fillStyle = '#0D1130'; c.fillRect(0, 0, W, H);
-    c.save(); c.scale(z, z); c.translate(-this.cam.x, -this.cam.y);
+    this.shake = Math.max(0, this.shake - dt * 2.5);
+    const sx = (Math.random() - 0.5) * 14 * this.shake, sy = (Math.random() - 0.5) * 14 * this.shake;
+    c.save(); c.translate(sx, sy); c.scale(z, z); c.translate(-this.cam.x, -this.cam.y);
     c.drawImage(this.static, 0, 0);
     this.floorFx(c, g, t);
     this.sorted(c, g, t);
+    c.restore();
+    this.darkness(c, g, z, W, H);
+    c.save(); c.translate(sx, sy); c.scale(z, z); c.translate(-this.cam.x, -this.cam.y);
+    this.topFx(c, g, t);
+    this.particles(c, dt);
     this.overlays(c, g, t);
     c.restore();
+    // the screen edges glow red while someone's Eye is filling on you
+    const danger = Math.max(0, ...g.npcs.map(n => n.eye || 0));
+    if (danger > 0.05) {
+      const rg = c.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, H * 0.95);
+      rg.addColorStop(0, 'rgba(255,90,79,0)'); rg.addColorStop(1, `rgba(255,90,79,${Math.min(0.5, danger * 0.55) * (0.8 + Math.sin(t * 18) * 0.2)})`);
+      c.fillStyle = rg; c.fillRect(0, 0, W, H);
+    }
+    if (g.flash > 0) { c.fillStyle = `rgba(220,235,255,${Math.min(0.75, g.flash * 1.8)})`; c.fillRect(0, 0, W, H); }
     // cool night tint and vignette
     const vg = c.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.85);
     vg.addColorStop(0, 'rgba(10,13,38,0)'); vg.addColorStop(1, 'rgba(10,13,38,0.55)');
@@ -284,6 +302,13 @@ export class Renderer {
         if (g.fridge.byDad) { c.fillStyle = 'rgba(255,224,138,0.12)'; c.fillRect(T, 10 * T, 12 * T, 8 * T); }
       }
     }
+    // moonbeams fall through the windows (they drift a little through the night)
+    if (!g.dream && g.twist !== 'thunder') for (const [wx, wy] of WINDOWS) {
+      const x = (wx + 0.15) * T, y = (wy + 1) * T, sh = Math.sin(t * 0.2 + wx) * 6;
+      c.fillStyle = 'rgba(160,196,255,0.07)';
+      poly(c, [[x + 6, y], [x + T * 0.7, y], [x + T * 1.2 + sh, y + T * 2.4], [x - T * 0.1 + sh, y + T * 2.4]]); c.fill();
+    }
+    if (g.time < g.hallLight) { c.fillStyle = 'rgba(255,224,138,0.16)'; c.fillRect(T, 6 * T, 28 * T, 2 * T); }
     // creaky boards you know about
     for (const k of g.creaks.values()) {
       if (!k.known && !see) continue;
@@ -299,17 +324,85 @@ export class Renderer {
     // the secret stash sparkles through the goggles
     const st = g.lv.stash && w.obj(g.lv.stash);
     if (st && see && !g.stats.wrapper) { const sx = (st.x + st.w / 2) * T, sy = (st.y + st.h / 2) * T; spr(c, 'ui_wrapper', sx, sy - 30 + Math.sin(t * 4) * 4, 0.3); }
+  }
+
+  spawn(g) {
+    const P = this.parts, R = Math.random;
+    for (const e of g.fx.splice(0)) {
+      if (e.k === 'shake') this.shake = Math.min(1, this.shake + e.v * 0.8);
+      else if (e.k === 'dust') for (let i = 0; i < 3; i++) P.push({ k: 'dust', x: e.x + (R() - 0.5) * 20, y: e.y, vx: (R() - 0.5) * 40, vy: -10 - R() * 20, t: 0, life: 0.5 });
+      else if (e.k === 'spark') for (let i = 0; i < 8; i++) { const a = R() * TAU; P.push({ k: 'spark', x: e.x, y: e.y + 40, vx: Math.cos(a) * 150, vy: Math.sin(a) * 150 - 60, t: 0, life: 0.8 }); }
+      else if (e.k === 'confetti') for (let i = 0; i < 30; i++) P.push({ k: 'conf', x: e.x + (R() - 0.5) * 60, y: e.y + 30, vx: (R() - 0.5) * 300, vy: -90 - R() * 150, t: 0, life: 1.3, col: [GLOW, PINK, MOON, GREEN, ORANGE][i % 5], r: R() * 6 });
+      else if (e.k === 'pop') P.push({ k: 'pop', x: e.x, y: e.y, t: 0, life: 0.35 });
+    }
+    if (P.length > 300) P.splice(0, P.length - 300);
+  }
+  particles(c, dt) {
+    for (const q of this.parts) {
+      q.t += dt;
+      if (q.vx != null) { q.x += q.vx * dt; q.y += q.vy * dt; q.vy += (q.k === 'conf' ? 420 : q.k === 'spark' ? 180 : 0) * dt; q.vx *= 0.98; }
+      const k = q.t / q.life;
+      if (q.k === 'dust') { c.beginPath(); c.arc(q.x, q.y, 5 + k * 10, 0, TAU); c.fillStyle = `rgba(200,205,235,${0.35 * (1 - k)})`; c.fill(); }
+      else if (q.k === 'spark') { c.save(); c.globalAlpha = 1 - k; c.fillStyle = GLOW; c.translate(q.x, q.y); c.rotate(q.t * 8); c.fillRect(-7, -2.5, 14, 5); c.fillRect(-2.5, -7, 5, 14); c.restore(); }
+      else if (q.k === 'conf') { c.save(); c.globalAlpha = Math.min(1, 2 * (1 - k)); c.fillStyle = q.col; c.translate(q.x, q.y); c.rotate(q.t * 6 + q.r); c.fillRect(-7, -4, 14, 8); c.restore(); }
+      else if (q.k === 'pop') { c.beginPath(); c.arc(q.x, q.y, 8 + k * 26, 0, TAU); c.strokeStyle = `rgba(255,246,229,${1 - k})`; c.lineWidth = 4; c.stroke(); }
+    }
+    this.parts = this.parts.filter(q => q.t < q.life);
+  }
+
+  // Night lighting: the house sits in a soft dark, with real light spilling from lamps, the fridge and the raider.
+  darkness(c, g, z, W, H) {
+    if (g.dream) return;
+    const cv = this.dk || (this.dk = document.createElement('canvas'));
+    const sc = 0.5;
+    if (cv.width !== Math.round(W * sc) || cv.height !== Math.round(H * sc)) { cv.width = Math.round(W * sc); cv.height = Math.round(H * sc); }
+    const d = cv.getContext('2d'), power = g.twist === 'powercut';
+    d.setTransform(1, 0, 0, 1, 0, 0);
+    d.globalCompositeOperation = 'source-over';
+    d.clearRect(0, 0, cv.width, cv.height);
+    d.fillStyle = power ? 'rgba(4,6,22,0.80)' : 'rgba(6,9,32,0.42)';
+    d.fillRect(0, 0, cv.width, cv.height);
+    d.globalCompositeOperation = 'destination-out';
+    const k = sc * z, X = x => (x - this.cam.x) * k, Y = y => (y - this.cam.y) * k;
+    const hole = (x, y, r, a = 1) => {
+      const gr = d.createRadialGradient(X(x), Y(y), 0, X(x), Y(y), r * k);
+      gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(0.6, `rgba(0,0,0,${a * 0.7})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      d.fillStyle = gr; d.beginPath(); d.arc(X(x), Y(y), r * k, 0, TAU); d.fill();
+    };
+    if (!power) {
+      for (const l of LIGHTS) {
+        if (l.kind === 'circle') hole(l.x * T, l.y * T, l.r * T * 1.5);
+        else hole((l.x + l.w / 2) * T, (l.y + l.h / 2) * T, Math.max(l.w, l.h) * T * 0.8, 0.8);
+      }
+      if (g.fridge.open) hole(11.5 * T, 12.5 * T, g.fridge.byDad ? 7 * T : 4 * T);
+      const mk = g.npc('mika');
+      if (mk && mk.state !== 'asleep') hole(23.5 * T, 4 * T, 4 * T, 0.8);
+      g.items.forEach(it => { if (it.id === 'donut' && !it.taken) hole(it.x, it.y, 1.5 * T); });
+      if (g.time < g.hallLight) for (let x = 3; x <= 27; x += 4) hole(x * T, 6.8 * T, 3.2 * T, 0.9);
+      for (const [wx, wy] of WINDOWS) hole((wx + 0.5) * T, (wy + 2.2) * T, 1.8 * T, 0.45);
+    }
+    hole(g.p.x, g.p.y - 30, (power ? 1.9 : 2.4) * T, 0.9);   // you can always see yourself
+    c.drawImage(cv, 0, 0, W, H);
+  }
+
+  topFx(c, g, t) {
     // cover sound: Dad's snore
     const dad = g.npc('dad');
     if (dad && g.snoreOn) {
-      const ph = (g.time % 6) / 2;
+      const ph = (g.time % g.snorePeriod) / 2;
       c.beginPath(); c.arc(dad.x, dad.y, 6 * T, 0, TAU); c.fillStyle = `rgba(127,180,255,${0.10 * (1 - ph * 0.5)})`; c.fill();
       for (const f of [0.35, 0.7, 1]) { c.beginPath(); c.arc(dad.x, dad.y, 6 * T * Math.min(1, ph * 1.2) * f, 0, TAU); c.strokeStyle = `rgba(127,180,255,${0.5 * (1 - ph)})`; c.lineWidth = 4; c.stroke(); }
     }
     for (const cv of g.covers) if (g.time < cv.until) { c.beginPath(); c.arc(cv.x, cv.y, cv.reach * T, 0, TAU); c.fillStyle = 'rgba(127,180,255,0.10)'; c.fill(); }
     // vision cones
     for (const n of g.npcs) {
-      if (n.cone == null || n.state === 'asleep' || n.state === 'rising') continue;
+      if (n.cone == null || n.state === 'rising' || n.state === 'sleepwalk') continue;
+      if (n.state === 'asleep') {   // a light sleeper peeking: a short cone from the bed
+        if (!(n.peek > 0)) continue;
+        const hot = Math.min(1, n.eye);
+        poly(c, visionPoly(g, { ...n, cone: n.cone }, 2.5 * T)); c.fillStyle = `rgba(255,${Math.round(224 - 134 * hot)},138,${0.2 + hot * 0.25})`; c.fill();
+        continue;
+      }
       if (n.kind === 'mika' && n.cool > 0) continue;
       const hot = n.eye > 0 ? Math.min(1, n.eye) : 0;
       const col = hot ? `255,${Math.round(224 - 134 * hot)},${Math.round(138 - 59 * hot)}` : '255,224,138';
@@ -328,6 +421,12 @@ export class Renderer {
     const list = [], p = g.p, w = g.world;
     for (const o of w.objs) if (o.t !== 'rug') list.push([o.t === 'chute' || o.t === 'dock' ? 0 : (o.y + o.h) * T - 2, () => drawObj(c, o, g, t)]);
     for (const d of w.doors) list.push([(d.y + 1) * T - 1, () => drawDoor(c, d)]);
+    for (const b of g.balloons || []) list.push([(b.y + 1) * T - 20, () => {
+      const bx = (b.x + 0.5) * T, by = (b.y + 0.5) * T + Math.sin(t * 2 + b.x) * 3;
+      c.strokeStyle = 'rgba(255,246,229,0.7)'; c.lineWidth = 2; c.beginPath(); c.moveTo(bx, by + 4); c.quadraticCurveTo(bx + 6, by + 18, bx, by + 26); c.stroke();
+      c.beginPath(); c.ellipse(bx, by - 10, 15, 18, 0, 0, TAU); fillStroke(c, b.col, 3);
+      c.beginPath(); c.ellipse(bx - 5, by - 16, 4, 6, -0.4, 0, TAU); c.fillStyle = 'rgba(255,255,255,0.55)'; c.fill();
+    }]);
     for (const b of g.bricks) list.push([(b.y + 1) * T - 24, () => spr(c, 'brick_' + b.col, (b.x + 0.5) * T, (b.y + 0.5) * T + 14, 0.62)]);
     g.items.forEach(it => { if (!it.taken) list.push([it.y + 2 * T + 40, () => { const bob = Math.sin(t * 3 + it.x) * 2; if (it.id === 'donut') { c.beginPath(); c.arc(it.x, it.y, 30, 0, TAU); c.fillStyle = 'rgba(255,224,138,0.3)'; c.fill(); } spr(c, 'snack_' + it.id, it.x, it.y - 6 + bob, 0.36); }]); });
     if (g.plate) list.push([g.plate.y + 2 * T + 40, () => { c.beginPath(); c.ellipse(g.plate.x, g.plate.y + 4, 24, 10, 0, 0, TAU); fillStroke(c, 'white', 2.5); if (g.plate.has) spr(c, 'snack_cake', g.plate.x, g.plate.y - 8, 0.34); }]);
@@ -342,13 +441,19 @@ export class Renderer {
     const f = p.slide ? 0 : p.mode === 'run' ? 19 : p.mode === 'walk' ? 12 : 7;
     const bob = moving ? Math.abs(Math.sin(t * f)) * (p.mode === 'tiptoe' ? -3 : -5) : 0;
     const rot = p.slide ? 0.28 * p.face : moving ? Math.sin(t * f) * 0.07 : p.stun > 0 ? Math.sin(t * 40) * 0.12 : 0;
-    spr(c, g.o.sprite || 'kid_dino', p.x, p.y + 18 + bob, S, { flip: p.face < 0, rot });
+    const base = g.o.sprite || 'kid_dino';
+    const fps = p.mode === 'run' ? 9 : p.mode === 'walk' ? 6 : 4;
+    const step = moving && !p.slide ? 1 + (Math.floor(t * fps) % 2) : 0;
+    const name = base + '_' + (p.back ? 'b' : 'f') + step;
+    // a soft ring under your feet, so you never lose yourself in the dark
+    c.beginPath(); c.ellipse(p.x, p.y + 20, 30, 12, 0, 0, TAU); c.strokeStyle = `rgba(76,203,122,${0.45 + Math.sin(t * 4) * 0.15})`; c.lineWidth = 3; c.stroke();
+    spr(c, has(name) ? name : base, p.x, p.y + 18 + bob * 0.6, 0.38, { flip: p.face < 0, rot: rot * 0.6 });
     const n = p.carry.length;
     p.carry.forEach((id, i) => spr(c, 'snack_' + id, p.x + (i - (n - 1) / 2) * 34, p.y - 96 + bob + Math.sin(t * 5 + i) * 2, 0.3));
   }
 
   npc(c, g, n, t) {
-    if (n.kind === 'adult') { if (n.state !== 'asleep') spr(c, n.id === 'dad' ? 'dad_awake' : 'mom', n.x, n.y + 18 + (n.state === 'goto' ? Math.abs(Math.sin(t * 9)) * -4 : 0), S, { flip: Math.cos(n.dir) < -0.2 }); }
+    if (n.kind === 'adult') { if (n.state !== 'asleep') spr(c, n.id === 'dad' ? (n.state === 'sleepwalk' ? 'dad' : 'dad_awake') : 'mom', n.x, n.y + 18 + (n.state === 'goto' || n.state === 'sleepwalk' ? Math.abs(Math.sin(t * 9)) * -4 : 0), S, { flip: Math.cos(n.dir) < -0.2 }); }
     else if (n.kind === 'mika') {
       if (n.state === 'asleep') return;
       c.beginPath(); c.arc(n.x + 12, n.y - 30, 34, 0, TAU); c.fillStyle = 'rgba(159,216,255,0.16)'; c.fill();
@@ -367,9 +472,11 @@ export class Renderer {
     for (const n of g.npcs) {
       if (n.kind === 'dusty') continue;
       const hx = n.x, hy = n.y - (n.kind === 'dog' ? 40 : n.kind === 'baby' ? 50 : n.state === 'asleep' ? 50 : 100);
-      if (n.z != null && n.state === 'asleep') {
-        if (n.z === 1) txt(c, '?', hx - 4, hy - 4, 30, ORANGE, 'center', 700, 5);
-        drawZs(c, hx, hy, n.z, t);
+      if (n.z != null && (n.state === 'asleep' || n.state === 'sleepwalk')) {
+        const zy = n.state === 'sleepwalk' ? n.y - 100 : hy;
+        if (n.peek > 0) drawEye(c, hx, zy - 12, Math.max(0.05, n.eye));
+        else if (n.z === 1) txt(c, '?', hx - 4, zy - 4, 30, ORANGE, 'center', 700, 5);
+        drawZs(c, hx, zy, n.z, t);
       } else if (n.state === 'cry') txt(c, 'WAAH!', hx, hy - 8 + Math.sin(t * 20) * 2, 20, RED, 'center', 700, 5);
       else if (n.state === 'eat') txt(c, 'nom nom', hx, hy, 15, MILK, 'center', 600, 4);
       else if (n.kind === 'dog' && n.state === 'beg') { c.fillStyle = 'rgba(20,26,60,0.8)'; rr(c, hx - 30, hy - 26, 60, 12, 6); c.fill(); c.fillStyle = RED; rr(c, hx - 28, hy - 24, 56 * Math.max(0, 1 - n.whine / 3), 8, 4); c.fill(); }
@@ -380,6 +487,18 @@ export class Renderer {
         else if (n.kind === 'adult') txt(c, n.state === 'rising' ? '!?' : n.state === 'look' ? '?' : '!', hx, hy - 10, 30, n.state === 'look' ? ORANGE : RED, 'center', 700, 5);
         if (n.kind === 'mika' && n.owed > 0) txt(c, 'snack! ' + Math.ceil(n.owed) + 's', hx, hy - 38, 15, GLOW, 'center', 700, 4);
       }
+    }
+    // speech bubbles
+    for (const n of g.npcs) {
+      if (!n.say) continue;
+      const bx = n.x, by = n.y - (n.state === 'asleep' ? 96 : 150);
+      c.font = '600 17px Fredoka, sans-serif';
+      const w = c.measureText(n.say.text).width + 26;
+      c.globalAlpha = Math.min(1, n.say.t * 3);
+      rr(c, bx - w / 2, by - 20, w, 36, 16); fillStroke(c, MILK, 3);
+      c.beginPath(); c.moveTo(bx - 8, by + 15); c.lineTo(bx + 2, by + 30); c.lineTo(bx + 10, by + 15); c.closePath(); c.fillStyle = MILK; c.fill();
+      txt(c, n.say.text, bx, by - 1, 17, NAVY, 'center', 600);
+      c.globalAlpha = 1;
     }
     // melt and fizz meters over the raider
     if (!p.inBed && !p.hidden) {
@@ -398,6 +517,7 @@ export class Renderer {
     rr(c, 18, 16, 236, 76, 22); c.fillStyle = 'rgba(15,20,51,0.9)'; c.fill(); c.lineWidth = 3; c.strokeStyle = NAVY; c.stroke();
     c.beginPath(); c.arc(54, 46, 17, 0, TAU); c.fillStyle = GLOW; c.fill(); c.beginPath(); c.arc(62, 40, 14, 0, TAU); c.fillStyle = 'rgba(15,20,51,1)'; c.fill();
     txt(c, g.clock(), 86, 43, 34, MILK, 'left', 700);
+    if (g.twist) txt(c, TWISTS[g.twist].name.toUpperCase(), 136, 108, 14, GLOW, 'center', 700, 4);
     const k = Math.min(1, g.time / g.nightLen);
     rr(c, 86, 68, 150, 9, 4); c.fillStyle = '#2B2F77'; c.fill(); rr(c, 86, 68, Math.max(6, 150 * k), 9, 4); c.fillStyle = k > 0.8 ? RED : GLOW; c.fill();
     // craving list

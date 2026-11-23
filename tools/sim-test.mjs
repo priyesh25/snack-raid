@@ -30,6 +30,17 @@ for (const lv of LEVELS) {
   ok(g.state === 'play', `night ${lv.n}: idles for 30 s`);
 }
 
+// 1b. every spot a loose snack can move to is reachable
+import { LOOSE_SPOTS } from '../app/js/data.js';
+{
+  const w0 = new World(LEVELS[1]);
+  for (const [sx, sy] of LOOSE_SPOTS) {
+    let reach = false;
+    for (let y = 0; y < w0.H; y++) for (let x = 0; x < w0.W; x++)
+      if (w0.walkable(x, y) && Math.hypot((x + 0.5) * T - sx * T, (y + 0.5) * T - sy * T) <= 1.4 * T && w0.path(3, 2, x, y)) reach = true;
+    ok(reach, 'loose spot ' + sx + ',' + sy + ' is reachable');
+  }
+}
 // 2. pathfinding: bed to kitchen exists
 const w = new World(LEVELS[0]);
 const path = w.path(SPOTS.kidExit[0], SPOTS.kidExit[1], 8, 11);

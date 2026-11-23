@@ -1,6 +1,6 @@
 // Snack Raid service worker: caches the whole game so it works offline after the first visit.
 // Bump CACHE when you ship a new version.
-const CACHE = 'snack-raid-v0.2.0';
+const CACHE = 'snack-raid-v0.3.0';
 const FILES = [
   './', './index.html', './manifest.webmanifest', './css/style.css',
   './js/main.js', './js/ui.js', './js/game.js', './js/world.js', './js/render.js', './js/input.js', './js/gfx.js',

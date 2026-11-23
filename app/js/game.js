@@ -1,5 +1,26 @@
 // Snack Raid: one night of play. Pure simulation, no DOM, so it can be tested headless.
-import { T, SNACKS, GADGETS, gadgetCharges, SPOTS, LIGHTS, COUNTER, EXCUSES } from './data.js';
+import { T, SNACKS, GADGETS, gadgetCharges, SPOTS, LIGHTS, COUNTER, EXCUSES, LOOSE_SPOTS } from './data.js';
+
+// Difficulty, in one place. v0.3.0 made the game harder: shorter nights, lighter sleepers, sharper eyes.
+export const TUNE = {
+  hour: 24, bossHour: 40,        // seconds per game hour (a night is 6 hours)
+  dadZ: 3, momZ: 2,              // Zs when asleep
+  zBack: 12,                     // seconds of quiet for one Z to grow back
+  hitGap: 0.35,                  // a sleeper can lose a Z this often
+  cover: 2,                      // tiles a cover sound takes off your rings
+  darkSight: 2.5, litSight: 5,   // how far awake eyes see you, in tiles
+  darkFill: 1.4, litFill: 2.4,   // how fast the Eye fills per second
+  look: 10,                      // seconds an adult searches a noise
+  dadSpeed: 2.2, momSpeed: 3.3,  // tiles per second
+};
+const LINES = {
+  dadWake: ['Hrmph? Who is there?', 'Biscuit? Was that you?', 'I heard a snack. I mean, a noise.', 'Whozzat? Burglar? Raccoon?'],
+  dadLook: ['Must be the house settling...', 'Nobody here. Just me and my tummy.', 'Hmm. Spooky.'],
+  dadSnack: ['Well, since I am up...', 'Just one bite.', 'Mmm. Nobody will miss this.', 'Midnight snack time!'],
+  dadCheck: ['Let me just check on the kids...'],
+  momWake: ['Hm? What was that?', 'Somebody is up...', 'I heard that.'],
+  momLook: ['I know you are there...', 'Hmm.'],
+};
 import { World } from './world.js';
 
 const SPEED = { tiptoe: 1.5 * T, walk: 3 * T, run: 5 * T };
@@ -21,7 +42,10 @@ export class Game {
     this.hooks = opts.hooks || {};
     this.world = new World(level);
     this.dream = level.type === 'dream';
-    this.hourLen = (level.type === 'boss' ? 60 : 40) * (this.cheat.slowclock ? 2 : 1);
+    this.hourLen = (level.type === 'boss' ? TUNE.bossHour : TUNE.hour) * (this.cheat.slowclock ? 2 : 1);
+    this.twist = opts.twist || null;
+    this.flash = 0; this.nextThunder = 9 + Math.random() * 6;
+    this.snorePeriod = 5 + Math.random() * 2.5;
     this.nightLen = this.dream ? 60 : 6 * this.hourLen;
     this.time = 0;
     this.state = 'play';
@@ -34,7 +58,16 @@ export class Game {
     this.delivered = []; this.trips = 0;
     this.npcs = []; this.rings = []; this.crumbs = []; this.puddles = []; this.treats = []; this.decoys = [];
     this.coins = []; this.timers = []; this.toasts = []; this.floaters = [];
-    this.items = level.snacks.filter(s => s.src === 'loose').map(s => ({ id: s.id, x: tc(s.at[0]), y: tc(s.at[1]), taken: false }));
+    this.fx = [];          // visual events for the renderer: dust, sparkle, confetti, pop, shake
+    this.hallLight = 0;    // time until which the upstairs hallway light is on
+    this.slowmo = 0;
+    // Loose snacks move around between tries (from night 2 on), so no two nights play the same.
+    const free = LOOSE_SPOTS.slice().sort(() => Math.random() - 0.5);
+    this.items = level.snacks.filter(s => s.src === 'loose').map(s => {
+      let at = s.at;
+      if (opts.variety && !s.fixed && level.n > 1) at = free.pop();
+      return { id: s.id, x: tc(at[0]), y: tc(at[1]), taken: false };
+    });
     this.fridge = { open: false, t: 0, beep: 0, muted: false, byDad: false, snacks: level.snacks.filter(s => s.src === 'fridge').map(s => s.id) };
     this.jar = { snacks: level.snacks.filter(s => s.src === 'jar').map(s => s.id) };
     this.pantryBag = level.snacks.some(s => s.src === 'microwave');
@@ -42,6 +75,13 @@ export class Game {
     this.creaks = new Map();
     const known = new Set(opts.knownCreaks || []);
     for (const [x, y] of level.creaks || []) this.creaks.set(x + ',' + y, { x, y, known: known.has(x + ',' + y), oiled: false });
+    // a few new creaky boards every try, on wood floors (never remembered)
+    if (opts.variety && !level.allCarpet) {
+      const wood = [];
+      for (let y = 0; y < this.world.H; y++) for (let x = 0; x < this.world.W; x++)
+        if (this.world.grid[y][x] === 'w' && this.world.walkable(x, y) && !this.world.doorAt(x, y) && !this.creaks.has(x + ',' + y)) wood.push([x, y]);
+      for (let i = 0; i < 3 && wood.length; i++) { const [x, y] = wood.splice(Math.floor(Math.random() * wood.length), 1)[0]; this.creaks.set(x + ',' + y, { x, y, known: false, oiled: false, fresh: true }); }
+    }
     this.bricks = (level.bricks || []).map(([x, y, col]) => ({ x, y, col }));
     this.goggles = 0; this.muffArmed = false; this.dummy = false; this.excuseUsed = false;
     this.hold = null; this.holdLock = false; this.shh = null; this.ctx = null; this.ctx2 = null;
@@ -65,6 +105,19 @@ export class Game {
     }
     if (h.dusty) this.npcs.push({ id: 'dusty', kind: 'dusty', x: tc(24.5), y: tc(17.5), state: 'dock', route: h.dusty.route, ri: -1, path: null,
       speed: 2 * T, bonkCd: 0, pause: 0, angry: 0, from: h.dusty.from, dir: 0 });
+    this.balloons = [];
+    if (this.twist === 'party') {
+      const spots = [];
+      for (let y = 11; y <= 16; y++) for (let x = 14; x <= 27; x++) if (this.world.walkable(x, y) && !this.world.doorAt(x, y)) spots.push([x, y]);
+      for (let i = 0; i < 9 && spots.length; i++) { const [x, y] = spots.splice(Math.floor(Math.random() * spots.length), 1)[0]; this.balloons.push({ x, y, col: pick(['#FF5A4F', '#FF7EB6', '#7FB4FF', '#FFE08A', '#4CCB7A']) }); }
+      this.items.push({ id: 'cake', x: tc(5.5), y: tc(13.4), taken: false });
+    }
+    const dadN = this.npc('dad');
+    if (dadN && this.twist === 'sleepwalk') { dadN.state = 'sleepwalk'; dadN.speed = 1.3 * T; dadN.x = tc(dadN.exit[0] + 0.5); dadN.y = tc(dadN.exit[1] + 0.5); dadN.path = null; }
+    // Dad gets peckish once a night and raids the fridge himself (never on the boss night or on the sofa)
+    if (dadN && !h.dad.boss && !h.dad.sofa && !this.dream) dadN.raidAt = level.n === 1 ? 2.6 + Math.random() * 1.6 : 0.9 + Math.random() * 2.8;
+    const momN = this.npc('mom');
+    if (momN && momN.cfg.errand == null && !level.type && level.n >= 4 && Math.random() < 0.6) momN.tripAt = 1.2 + Math.random() * 3.2;
     if (this.dream) this.spawnDreamCoins();
     else if (level.n > 1 && Math.random() < 0.05) {
       const [x, y] = pick([[25.5, 13.5], [17.5, 14.5], [2.5, 13.5], [9.5, 15.5], [15.5, 6.5]]);
@@ -102,10 +155,10 @@ export class Game {
   sleepers() { return this.npcs.filter(n => n.z != null && n.state === 'asleep'); }
 
   addAdult(id, cfg) {
-    const s = cfg.sofa ? SPOTS.sofa : SPOTS[id], zmax = this.zs(id === 'dad' ? 5 : 3);
+    const s = cfg.sofa ? SPOTS.sofa : SPOTS[id], zmax = this.zs(id === 'dad' ? TUNE.dadZ : TUNE.momZ);
     this.npcs.push({ id, kind: 'adult', x: tc(s.bed[0]), y: tc(s.bed[1]), bx: tc(s.bed[0]), by: tc(s.bed[1]), exit: s.exit, zmax, z: zmax,
-      state: 'asleep', dir: DOWN, speed: (id === 'dad' ? 1.8 : 3.0) * T, cone: id === 'dad' ? 60 : 90, eye: 0, peak: 0, hitCd: 0, quiet: 0,
-      hearCd: 0, path: null, plan: [], t: 0, cfg, hears: true, wokeByNoise: false, checks: 0, sofa: !!cfg.sofa });
+      state: 'asleep', dir: DOWN, speed: (id === 'dad' ? TUNE.dadSpeed : TUNE.momSpeed) * T, cone: id === 'dad' ? 60 : 90, eye: 0, peak: 0, hitCd: 0, quiet: 0,
+      hearCd: 0, path: null, plan: [], t: 0, cfg, hears: true, wokeByNoise: false, checks: 0, sofa: !!cfg.sofa, peek: 0, peekCd: 2, say: null });
   }
 
   spawnDreamCoins() {
@@ -123,8 +176,10 @@ export class Game {
   // ------------------------------------------------------------ light and cover
   isLit(x, y) {
     if (this.dream) return false;
-    if (this.p.carry.includes('donut')) return true;
+    if (this.p.carry.includes('donut') || this.flash > 0) return true;
+    if (this.twist === 'powercut') return false;
     const tx = x / T, ty = y / T;
+    if (this.time < this.hallLight && tx >= 1 && tx <= 29 && ty >= 6 && ty <= 8) return true;
     for (const l of LIGHTS) {
       if (l.kind === 'circle' && Math.hypot(tx - l.x, ty - l.y) <= l.r) return true;
       if (l.kind === 'rect' && tx >= l.x && tx <= l.x + l.w && ty >= l.y && ty <= l.y + l.h) return true;
@@ -154,7 +209,7 @@ export class Game {
     }
     let rr = r;
     const covered = mine && this.coverAt(x, y);
-    if (covered) rr -= 3;
+    if (covered) rr -= TUNE.cover;
     if (mine && this.cheat.ninja && o.kind === 'step') rr -= 1;
     let touched = false;
     if (rr > 0) {
@@ -162,9 +217,10 @@ export class Game {
         if (!n.hears || n === o.by) continue;
         const eff = rr - 3 * this.world.soundDoors(x, y, n.x, n.y);
         if (dist(x, y, n.x, n.y) / T > eff) continue;
-        if (n.state === 'asleep') {
+        if (n.state === 'asleep' || n.state === 'sleepwalk') {
           if (n.hitCd > 0) continue;
-          n.z -= r >= 5 ? 2 : 1; n.hitCd = 0.5; n.quiet = 0; n.noiseAt = { x, y }; touched = true;
+          n.z -= r >= 5 ? 2 : 1; n.hitCd = TUNE.hitGap; n.quiet = 0; n.noiseAt = { x, y }; touched = true;
+          this.fx.push({ k: 'pop', x: n.x, y: n.y - 60 });
           if (n.z <= 0) this.wake(n); else this.sfx('pop', n.x, n.y);
         } else if (n.kind === 'adult' && n.hearCd <= 0 && rr >= 2 && n.state !== 'rising' && !n.busy) {
           n.hearCd = 2; touched = true;
@@ -177,6 +233,7 @@ export class Game {
     const col = r >= 5 ? '#FF5A4F' : touched ? '#FFE08A' : '#FFF6E5';
     this.rings.push({ x, y, r: Math.max(rr, 0.35) * T, t: 0, col, covered: covered && rr <= 0 });
     if (o.sfx) this.sfx(o.sfx, x, y);
+    if (r >= 5) this.fx.push({ k: 'shake', v: Math.min(1, r / 8) });
     if (mine && r >= 5 && this.hooks.buzz) this.hooks.buzz(60);
     return true;
   }
@@ -186,7 +243,7 @@ export class Game {
     this.stats.woke.add(n.id);
     if (n.kind === 'baby') { n.state = 'cry'; n.t = 10; n.cryTick = 0.3; this.toast('Baby Boo is awake!'); return; }
     n.state = 'rising'; n.t = 0.8;
-    if (n.kind === 'adult') { n.wokeByNoise = true; this.sfx('huh', n.x, n.y); this.toast((n.id === 'mom' ? 'Mom' : 'Dad') + ' woke up!'); }
+    if (n.kind === 'adult') { n.wokeByNoise = true; n.peek = 0; this.sfx('huh', n.x, n.y); this.say(n, pick(n.id === 'mom' ? LINES.momWake : LINES.dadWake), 2.6); this.toast((n.id === 'mom' ? 'Mom' : 'Dad') + ' woke up!'); }
     else this.sfx('whine', n.x, n.y);
   }
 
@@ -233,10 +290,10 @@ export class Game {
       n.state = 'wait'; n.t = st.t;
       n.dir = Math.atan2(tc(SPOTS.kidBed[1]) - n.y, tc(SPOTS.kidBed[0]) - n.x);
       if (!this.p.inBed && !this.dummy && !this.cheat.ghost) this.bust(n, 'bed');
-      else if (!this.p.inBed) this.toast('Mom checked your bed. The dummy fooled her.');
+      else if (!this.p.inBed) this.toast((n.id === 'dad' ? 'Dad' : 'Mom') + ' checked your bed. The dummy fooled ' + (n.id === 'dad' ? 'him.' : 'her.'));
     } else if (st.then === 'sleep') {
       if (n.kind === 'mika') { n.state = 'asleep'; n.plan = []; const d = this.world.doors.find(q => q.id === 'mika'); if (d) { d.open = false; d.byNpc = true; } return; }
-      n.state = 'asleep'; n.x = n.bx; n.y = n.by; n.eye = 0; n.dir = DOWN; n.plan = []; n.busy = false;
+      n.state = 'asleep'; n.x = n.bx; n.y = n.by; n.eye = 0; n.dir = DOWN; n.plan = []; n.busy = false; n.peek = 0; n.peekCd = 4;
       if (n.wokeByNoise) { n.zmax = Math.max(1, n.zmax - 1); n.wokeByNoise = false; }
       n.z = n.zmax; n.quiet = 0;
     } else if (st.then === 'idle') { n.state = 'idle'; n.plan = []; n.dir = DOWN; n.t = 26; }
@@ -253,9 +310,12 @@ export class Game {
       if (n.t <= 0) {
         const at = n.noiseAt || { x: n.x, y: n.y };
         const [tx, ty] = this.world.nearestWalkable(Math.floor(at.x / T), Math.floor(at.y / T));
-        n.x = tc(n.exit[0] + 0.5); n.y = tc(n.exit[1] + 0.5);
-        n.plan = [{ to: [tx, ty], then: 'look', t: 8 }];
-        if (n.id === 'mom' && n.cfg.bedCheck && (n.checks++ === 0 || Math.random() < 0.5)) n.plan.push({ to: SPOTS.bedCheck, then: 'check', t: 1.5 });
+        if (!n.walking) { n.x = tc(n.exit[0] + 0.5); n.y = tc(n.exit[1] + 0.5); }
+        n.walking = false;
+        const quip = n.id === 'dad' ? LINES.dadLook : LINES.momLook;
+        n.plan = [{ to: [tx, ty], then: 'look', t: TUNE.look, fx: () => this.say(n, pick(quip), 2.5) }];
+        if (n.id === 'dad') n.plan.push(...this.dadPatrol(n), ...this.dadSnackSteps(n), { to: SPOTS.bedCheck, then: 'check', t: 1.5, fx: () => this.say(n, LINES.dadCheck[0], 2) });
+        else if (n.cfg.bedCheck) n.plan.push({ to: SPOTS.bedCheck, then: 'check', t: 1.5 });
         n.plan.push({ to: n.exit, then: 'sleep' });
         this.startStep(n);
       }
@@ -268,23 +328,92 @@ export class Game {
   updAdult(n, dt) {
     if (n.state === 'asleep') {
       n.hitCd -= dt; n.quiet += dt;
-      if (n.z < n.zmax && n.quiet >= 8) { n.z++; n.quiet = 0; }
+      if (n.z < n.zmax && n.quiet >= TUNE.zBack) { n.z++; n.quiet = 0; }
       if (n.cfg.errand != null && !n.didErrand && this.hour() >= n.cfg.errand) { n.didErrand = true; this.startErrand(n); }
+      if (n.raidAt != null && !n.didRaid && this.hour() >= n.raidAt) { n.didRaid = true; return this.startRaid(n); }
+      if (n.tripAt != null && !n.didTrip && this.hour() >= n.tripAt) { n.didTrip = true; return this.startErrand(n, 'bath'); }
+      // a light sleeper (1 Z left) half-opens their eyes now and then, looking toward the last noise
+      if (n.z <= 1 && !n.cfg.boss) {
+        if (n.peek > 0) { n.peek -= dt; this.see(n, dt, true); if (n.peek <= 0) { n.peekCd = 2.5 + Math.random() * 2; n.eye = 0; } }
+        else { n.peekCd -= dt; if (n.peekCd <= 0) { n.peek = 1.4; const at = n.noiseAt || this.p; n.dir = Math.atan2(at.y - n.y, at.x - n.x); } }
+      } else n.peek = 0;
       if (n.cfg.boss && !n.bossOn && this.time >= 14) { n.bossOn = true; this.startBoss(n); }
       return;
     }
+    if (n.state === 'sleepwalk') return this.updSleepwalk(n, dt);
     this.updWalker(n, dt);
     if (n.state !== 'asleep' && n.state !== 'rising') this.see(n, dt);
   }
-  startErrand(n) {
-    this.toast('2:00. Mom is getting a glass of water.');
-    n.x = tc(n.exit[0] + 0.5); n.y = tc(n.exit[1] + 0.5);
-    n.plan = [
-      { to: SPOTS.sinkStand, then: 'wait', t: 4, face: UP, fx: () => this.sfx('water', n.x, n.y) },
-      { to: SPOTS.bathStand, then: 'wait', t: 3, face: UP, done: () => { this.covers.push({ x: n.x, y: n.y, reach: 5, until: this.time + 4 }); this.sfx('flush', n.x, n.y); } },
-      { to: n.exit, then: 'sleep' },
-    ];
+  startErrand(n, kind) {
+    n.x = tc(n.exit[0] + 0.5); n.y = tc(n.exit[1] + 0.5); n.peek = 0;
+    const flush = { to: SPOTS.bathStand, then: 'wait', t: 3, face: UP, done: () => { this.covers.push({ x: n.x, y: n.y, reach: 5, until: this.time + 4 }); this.sfx('flush', n.x, n.y); } };
+    if (kind === 'bath') { this.toast(this.clock() + '. Mom is up for the bathroom!'); n.plan = [flush, { to: SPOTS.bedCheck, then: 'check', t: 1.5 }, { to: n.exit, then: 'sleep' }]; }
+    else {
+      this.toast(this.clock() + '. Mom is getting a glass of water.');
+      n.plan = [{ to: SPOTS.sinkStand, then: 'wait', t: 4, face: UP, fx: () => this.sfx('water', n.x, n.y) }, flush, { to: n.exit, then: 'sleep' }];
+    }
     this.startStep(n);
+  }
+  // Dad's own midnight snack: he wanders to the kitchen, eats one of YOUR snacks, and checks on the kids.
+  startRaid(n) {
+    this.toast(this.clock() + '. Dad is up for a midnight snack too!', 3.5);
+    this.say(n, pick(LINES.dadSnack), 2.5);
+    n.x = tc(n.exit[0] + 0.5); n.y = tc(n.exit[1] + 0.5); n.peek = 0;
+    n.plan = [{ to: [20, 7], then: 'look', t: 2 }, ...this.dadSnackSteps(n),
+      { to: SPOTS.bedCheck, then: 'check', t: 1.5, fx: () => this.say(n, LINES.dadCheck[0], 2) }, { to: n.exit, then: 'sleep' }];
+    this.startStep(n);
+  }
+  // When Dad is properly awake he does not just look and go back to bed. He makes a night of it.
+  dadPatrol(n) {
+    const steps = [];
+    if (Math.random() < 0.55) steps.push({ to: [12, 6], then: 'wait', t: 1, face: UP, fx: () => {
+      this.hallLight = this.time + 18; this.sfx('switch'); this.say(n, pick(['Let there be light!', 'Aha! Nowhere to hide now.', 'Who left it so dark?']), 2.4);
+    } });
+    const rooms = [[24, 12], [17, 14], [8, 13], [4, 7], [21, 7]];
+    const spot = pick(rooms);
+    steps.push({ to: spot, then: 'look', t: 4, fx: () => this.say(n, pick(['Hello? Anybody?', 'I am not scared. You are scared.', 'Was that a raccoon?', 'Whoever you are, I have a slipper.']), 2.4) });
+    if (Math.random() < 0.4) steps.push({ to: pick(rooms), then: 'wait', t: 1.4, fx: () => {
+      this.noise(n.x, n.y, 5, { by: n, sfx: 'ow' }); this.float('OUCH!', n.x, n.y - 110, '#FF5A4F');
+      this.say(n, pick(['OUCH! My toe!', 'Who leaves LEGO on the floor?!', 'Ow ow ow ow.']), 2.4);
+    } });
+    // Dad clomping around is noisy: Mom may wake up and come looking too
+    const mom = this.npc('mom');
+    if (mom && mom.state === 'asleep' && Math.random() < 0.4) this.after(5 + Math.random() * 6, () => {
+      if (mom.state !== 'asleep' || this.state !== 'play') return;
+      mom.noiseAt = { x: n.x, y: n.y }; this.wake(mom);
+      this.after(0.2, () => this.say(mom, pick(['Honey? What are you DOING?', 'Is that you clomping about?', 'Some of us are trying to sleep!']), 2.6));
+    });
+    return steps;
+  }
+  dadSnackSteps(n) {
+    const lv = this.lv, mine = id => id !== lv.craving;
+    if (this.fridge.snacks.some(mine) || !this.jar.snacks.some(mine)) {
+      return [{ to: SPOTS.fridgeStand, then: 'wait', t: 3.2, face: UP, fx: () => { if (!this.fridge.open) { this.fridge.open = true; this.fridge.byDad = true; this.fridge.t = -999; this.sfx('fridge', n.x, n.y); } this.say(n, pick(LINES.dadSnack), 2.5); },
+        done: () => { this.dadEats(this.fridge.snacks); this.fridge.open = false; this.fridge.byDad = false; this.sfx('fridge', n.x, n.y); } }];
+    }
+    return [{ to: [6, 11], then: 'wait', t: 2.6, face: UP, fx: () => this.say(n, pick(LINES.dadSnack), 2.5), done: () => this.dadEats(this.jar.snacks) }];
+  }
+  dadEats(list) {
+    const i = list.findIndex(id => id !== this.lv.craving);
+    if (i < 0) return;
+    const id = list.splice(i, 1)[0];
+    this.stats.dadAte = (this.stats.dadAte || []).concat(id);
+    this.toast('Oh no! Dad ate the ' + SNACKS[id].name.toLowerCase() + '!', 3.5);
+    this.sfx('crunch');
+  }
+  say(n, text, t = 2.5) { n.say = { text, t }; if (this.hooks.voice) this.hooks.voice(n.id, text, Math.max(0, 1 - dist(n.x, n.y, this.p.x, this.p.y) / (16 * T))); }
+  // Sleepwalking Dad (a Night Twist): wanders with his eyes shut. Noise still costs Zs; a bump wakes him.
+  updSleepwalk(n, dt) {
+    n.hitCd -= dt; n.quiet += dt;
+    if (n.z < n.zmax && n.quiet >= TUNE.zBack) { n.z++; n.quiet = 0; }
+    if (!n.path || !n.path.length) {
+      const spots = [[20, 7], [4, 6], [25, 12], [16, 14], [8, 12], [26, 16], [12, 7]];
+      const [x, y] = pick(spots); n.path = this.world.path(...tileOf(n), x, y) || [];
+    }
+    this.follow(n, dt);
+    if (Math.random() < dt / 6) this.say(n, pick(['zzz... pancakes...', 'mmm... more syrup...', 'zzz... I am a giraffe...']), 2.2);
+    const p = this.p;
+    if (!p.inBed && !p.hidden && !this.cheat.ghost && dist(n.x, n.y, p.x, p.y) < 0.72 * T) { n.noiseAt = { x: p.x, y: p.y }; n.walking = true; this.wake(n); }
   }
   // Boss night: Dad sneaks down for the cake, plates it, then turns his back to pour milk.
   startBoss(dad) {
@@ -326,30 +455,34 @@ export class Game {
   }
 
   // ------------------------------------------------------------ sight
-  see(n, dt) {
+  see(n, dt, peeking) {
     const p = this.p;
     if (this.cheat.ghost || this.dream || p.inBed) { n.eye = Math.max(0, n.eye - dt * 1.5); return; }
     const d = dist(n.x, n.y, p.x, p.y), lit = this.isLit(p.x, p.y);
-    const range = (lit ? 5 : 2) * T + 10;
+    const dark = this.twist === 'powercut' ? 1.5 : TUNE.darkSight;
+    const range = (peeking ? Math.min(dark, 2.5) : lit ? TUNE.litSight : dark) * T + 10;
     let seen = false;
     const hid = p.hidden && !(p.hidden.watchers && p.hidden.watchers.has(n.id));
     if (!hid && d <= range) {
       const da = Math.abs(angDiff(Math.atan2(p.y - n.y, p.x - n.x), n.dir));
       if (da <= (n.cone / 2) * Math.PI / 180 && this.world.los(n.x, n.y, p.x, p.y)) seen = true;
     }
-    if (!hid && d < 0.7 * T) seen = true; // bumped right into them
+    if (!hid && !peeking && d < 0.7 * T) seen = true; // bumped right into them
     if (seen) {
-      n.eye += dt * (lit ? 2 : 1);
+      n.eye += dt * (lit ? TUNE.litFill : TUNE.darkFill);
       n.peak = Math.max(n.peak, n.eye);
       if (n.eye >= 1) { n.eye = 0; n.peak = 0; this.spotted(n); }
     } else if (n.eye > 0) {
       n.eye = Math.max(0, n.eye - dt * 0.8);
-      if (n.eye === 0 && n.peak > 0.3) { this.stats.closeCalls++; this.float('Close call!', p.x, p.y - 70, '#FFE08A'); }
+      if (n.eye === 0 && n.peak > 0.3) {
+        this.stats.closeCalls++; this.float(n.peak > 0.6 ? 'PHEW!' : 'Close call!', p.x, p.y - 70, '#FFE08A');
+        if (n.peak > 0.6) { this.slowmo = 0.6; this.sfx('phew'); }
+      }
       if (n.eye === 0) n.peak = 0;
     }
   }
   spotted(n) {
-    if (n.kind === 'adult') return this.bust(n, 'seen');
+    if (n.kind === 'adult') return this.bust(n, n.state === 'asleep' ? 'peek' : 'seen');
     if (n.kind === 'mika') {
       const p = this.p;
       if (p.carry.length) {
@@ -388,7 +521,7 @@ export class Game {
   }
   updBaby(n, dt) {
     n.hitCd -= dt;
-    if (n.state === 'asleep') { n.quiet += dt; if (n.z < n.zmax && n.quiet >= 8) { n.z++; n.quiet = 0; } return; }
+    if (n.state === 'asleep') { n.quiet += dt; if (n.z < n.zmax && n.quiet >= TUNE.zBack) { n.z++; n.quiet = 0; } return; }
     n.t -= dt; n.cryTick -= dt;
     if (n.cryTick <= 0) { n.cryTick = 1; this.noise(n.x, n.y, 6, { by: n, sfx: 'cry' }); }
     if (n.t <= 0) { n.state = 'asleep'; n.z = 1; n.quiet = 0; }
@@ -411,7 +544,7 @@ export class Game {
     const dP = dist(n.x, n.y, p.x, p.y);
     const canSee = !p.inBed && !p.hidden && !this.dream && dP < 3.2 * T && this.world.los(n.x, n.y, p.x, p.y);
     if (n.state === 'asleep') {
-      n.quiet += dt; if (n.z < n.zmax && n.quiet >= 8) { n.z++; n.quiet = 0; }
+      n.quiet += dt; if (n.z < n.zmax && n.quiet >= TUNE.zBack) { n.z++; n.quiet = 0; }
       if (!this.cheat.easysnacks && p.carry.includes('pizza') && dP < 4 * T && !p.inBed) { n.smelled = true; n.noiseAt = { x: p.x, y: p.y }; this.wake(n); this.toast('Biscuit smells pizza!'); }
       return;
     }
@@ -504,6 +637,7 @@ export class Game {
     const dx = inp.mx / Math.hypot(inp.mx, inp.my), dy = inp.my / Math.hypot(inp.mx, inp.my);
     p.dir = Math.atan2(dy, dx);
     if (Math.abs(dx) > 0.2) p.face = dx > 0 ? 1 : -1;
+    p.back = dy < -0.45;
     const sp = SPEED[mode] * (this.dream ? 1.25 : 1);
     const nx = p.x + dx * sp * dt, ny = p.y + dy * sp * dt;
     let moved = 0;
@@ -522,7 +656,8 @@ export class Game {
       if (this.has('socks') && fl !== 'c') r -= 1;
       if (!this.cheat.easysnacks && p.carry.includes('chips') && mode !== 'tiptoe') r += 1;
       if (this.slots >= 5 && this.used() >= 4) r += 1; // the Pillowcase Sack rustles
-      if (r > 0 && !this.dream) this.noise(p.x, p.y + 10, r, { kind: 'step', sfx: mode === 'run' ? 'stepRun' : 'step' });
+      if (mode === 'run') this.fx.push({ k: 'dust', x: p.x, y: p.y + 18 });
+      if (r > 0 && !this.dream) this.noise(p.x, p.y + 10, r, { kind: 'step', sfx: (mode === 'run' ? 'stepRun_' : 'step_') + fl });
       else if (!this.dream) this.sfx('stepSoft');
       if (!this.cheat.easysnacks && p.carry.includes('cookie') && mode === 'run') this.crumbs.push({ x: p.x, y: p.y + 12 });
     }
@@ -542,6 +677,8 @@ export class Game {
       if (!c.known) { c.known = true; this.stats.newCreaks.push(key); }
       this.noise(p.x, p.y, 5, { sfx: 'creak' }); this.float('CREAK', p.x, p.y - 60, '#FFA630');
     }
+    const bl = this.balloons.findIndex(b => b.x === tx && b.y === ty);
+    if (bl >= 0) { this.balloons.splice(bl, 1); this.noise(p.x, p.y, 7, { sfx: 'crash' }); this.float('POP!', p.x, p.y - 60, '#FF5A4F'); }
     if (this.bricks.some(b => b.x === tx && b.y === ty) && !this.has('slippers')) {
       this.noise(p.x, p.y, 6, { sfx: 'ow' }); p.stun = 1; this.float('OW!', p.x, p.y - 60, '#FF5A4F');
       if (this.hooks.buzz) this.hooks.buzz(120);
@@ -566,7 +703,7 @@ export class Game {
       this.trips++;
       const want = [lv.craving, ...lv.extras];
       if (this.trips === 1 && want.every(id => snacks.includes(id))) this.stats.oneTrip = true;
-      this.delivered.push(...snacks); this.sfx('stash');
+      this.delivered.push(...snacks); this.sfx('stash'); this.fx.push({ k: 'confetti', x: tc(2), y: tc(2) });
       this.toast('Stashed ' + snacks.length + (snacks.length > 1 ? ' snacks' : ' snack') + ' under the bed.');
     }
     p.carry = p.carry.filter(id => SNACKS[id].raw); p.melt = 0; p.fizz = 0;
@@ -587,7 +724,7 @@ export class Game {
     const p = this.p;
     p.carry.push(id);
     if (id === 'icecream') p.melt = 45;
-    this.sfx('grab');
+    this.sfx('grab'); this.fx.push({ k: 'spark', x: p.x, y: p.y - 90 });
     if (this.sleepers().some(n => dist(n.x, n.y, p.x, p.y) <= 2 * T)) this.stats.underNose = true;
   }
   lose(id, text, ring, sfx) {
@@ -760,7 +897,7 @@ export class Game {
   }
   updFridge(dt) {
     const f = this.fridge;
-    if (!f.open || f.byDad) return;
+    if (!f.open || f.byDad || this.twist === 'powercut') return;
     f.t += dt;
     if (f.t >= 5 && !f.muted) {
       f.beep -= dt;
@@ -825,12 +962,20 @@ export class Game {
   // ------------------------------------------------------------ the frame
   update(dt, inp) {
     if (this.state !== 'play') return;
+    if (this.slowmo > 0) { this.slowmo -= dt; dt *= 0.35; }   // a half-second of slow motion after a narrow escape
     lastDt = dt;
     this.time += dt;
     if (this.time >= this.nightLen) return this.alarm();
     const dad = this.npc('dad');
     const was = this.snoreOn;
-    this.snoreOn = !!dad && dad.state === 'asleep' && (this.time % 6) < 2;
+    this.snoreOn = !!dad && dad.state === 'asleep' && dad.peek <= 0 && (this.time % this.snorePeriod) < 2;
+    for (const n of this.npcs) if (n.say) { n.say.t -= dt; if (n.say.t <= 0) n.say = null; }
+    if (this.flash > 0) this.flash -= dt;
+    if (this.twist === 'thunder' && this.time >= this.nextThunder) {
+      this.nextThunder = this.time + 12 + Math.random() * 8;
+      this.flash = 0.45;
+      this.after(0.5, () => { this.covers.push({ x: 0, y: 0, reach: 999, until: this.time + 2.5 }); this.sfx('thunder'); });
+    }
     if (this.snoreOn && !was) this.sfx('snore', dad.x, dad.y);
     this.updPlayer(dt, inp);
     this.carryTick(dt);
@@ -871,7 +1016,9 @@ export class Game {
   bust(n, why) {
     if (this.state !== 'play') return;
     this.state = 'busted';
-    this.bustInfo = { by: n ? n.id : 'alarm', why, excuse: pick(EXCUSES), canExcuse: !this.excuseUsed && why !== 'alarm' };
+    const QUIPS = { dad: ['Caught you! Wait... did you bring me one?', 'Aha! Two snack thieves in one house?', 'I KNEW I heard crunching.'],
+      mom: ['Bed. Now.', 'Do you know what time it is?', 'I have eyes in the back of my head.'] };
+    this.bustInfo = { by: n ? n.id : 'alarm', why, excuse: pick(EXCUSES), quip: n && QUIPS[n.id] ? pick(QUIPS[n.id]) : '', canExcuse: !this.excuseUsed && why !== 'alarm' };
     this.sfx('busted'); if (this.hooks.buzz) this.hooks.buzz(300);
     if (this.hooks.onBusted) this.hooks.onBusted(this.bustInfo);
   }
@@ -901,7 +1048,7 @@ export class Game {
     const got = id => this.delivered.includes(id);
     const res = { level: lv.n, dream: this.dream, busted: !inBedAtEnd, by: this.bustInfo ? this.bustInfo.by : null,
       newCreaks: st.newCreaks, wrapper: st.wrapper, looseCoins: st.coinsFound, delivered: this.delivered.slice(), lines: [], style: [],
-      woke: [...st.woke], framedDog: false };
+      woke: [...st.woke], framedDog: false, dadAte: st.dadAte || [], hallLight: this.hallLight > 0 };
     if (this.dream) { res.win = true; res.points = 0; res.coins = st.coinsFound; res.crumbs = 30; res.stars = [false, false, false]; res.craving = true; return res; }
     const craving = got(lv.craving);
     res.craving = craving; res.win = inBedAtEnd && craving;

@@ -67,3 +67,13 @@ Everything is in `app/`. Plain ES modules, no build step.
 - Characters slide and bob. They have no walk cycles yet.
 - The Golden Donut can appear, but nothing else from the surprise list does yet.
 - Sound has only been checked for errors, not listened to on a phone.
+
+## v0.3.0 changes
+
+- `TUNE` in `app/js/game.js` holds every difficulty number. Change it there and in `docs/game-design.md`.
+- Dad's snack runs: `startRaid()` and `dadSnackSteps()` in game.js. He never eats the Craving.
+- Peeking: sleepers at 1 Z run `see(n, dt, true)` from bed for about a second at a time.
+- Night Twists: `opts.twist` in `Game`. Thunder uses `covers` and `flash`; Power Cut turns off `LIGHTS` and the fridge; Sleepwalking Dad is a `sleepwalk` state; Party adds `balloons` and a bonus cake.
+- Variety needs `opts.variety` (main.js passes it). Tests turn it on in the fuzz test and check every `LOOSE_SPOTS` entry is reachable.
+- Rendering: `darkness()` draws the night layer between the world and the overlays. Cones, rings and cover waves moved to `topFx()` so they stay readable.
+- Input: the drag stick starts anywhere that is not a button.

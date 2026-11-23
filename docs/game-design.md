@@ -10,7 +10,7 @@ Snack Raid is a funny stealth game. It is midnight, you are hungry, and the snac
 
 - **Player:** kids 10 to 12 who like Roblox, Mech Arena and Nintendo games
 - **Platform:** Android phone or tablet, held sideways, works offline
-- **Play style:** single player, top-down view, one night takes 2 to 4 minutes
+- **Play style:** single player, top-down view, one night takes about 2 and a half minutes
 - **Mood:** silly and tense, never scary. Getting caught is a joke, not a punishment
 
 **Why this age group will love it**
@@ -55,10 +55,10 @@ The top loop is the greed choice the whole game is built on. Getting seen only e
 
 **The clock**
 
-- The night runs from 12:00 to 6:00. One game hour is 40 seconds, so a full night is 4 minutes.
+- The night runs from 12:00 to 6:00. One game hour is 24 seconds, so a full night is 2 minutes 24 seconds. Tight on purpose: there is no time to wait for every snore.
 - Things happen on the clock. Dusty the robo-vac starts at 1:00. Mom gets water at 2:00. Players learn the rhythm of the house.
 - At 6:00 the alarm rings and everyone wakes up. Be in bed by then.
-- Boss nights run longer: one game hour is 60 seconds, so 6 minutes.
+- Boss nights run longer: one game hour is 40 seconds, so 4 minutes.
 
 **You win when**
 
@@ -124,9 +124,10 @@ Two things give you away: noise and being seen. Both are drawn on screen, so the
 
 - Zs float over every sleeper's head. They show how deeply that person sleeps. Dad has 5. Mom has 3.
 - A ring that touches a sleeper pops 1 Z. A big noise (a ring of 5 tiles or more) pops 2.
-- A sleeper can lose Zs only once every half second. One clumsy step is never instant doom.
-- Zs grow back: 1 Z for every 8 seconds of quiet.
+- A sleeper can lose Zs only once every third of a second. One clumsy step is rarely instant doom, two usually are.
+- Zs grow back: 1 Z for every 12 seconds of quiet.
 - At 1 Z the sleeper stirs, mumbles and shows a "?". That is the warning.
+- A sleeper at 1 Z also **peeks**: every few seconds they half-open their eyes for about a second, looking toward the last noise. The peek reaches 2.5 tiles. Get caught in it and you are Busted.
 - At 0 Zs they wake up.
 
 **How loud your feet are** (ring size in tiles)
@@ -156,17 +157,17 @@ Two things give you away: noise and being seen. Both are drawn on screen, so the
 
 **Cover sounds hide you**
 
-The house makes its own noise. While a cover sound plays, your rings shrink by 3 tiles inside its reach. A soft blue wave shows where it covers.
+The house makes its own noise. While a cover sound plays, your rings shrink by 2 tiles inside its reach. A soft blue wave shows where it covers.
 
-- **Dad's snore.** 2 seconds long, every 6 seconds, reaches 6 tiles around Dad. Move on the snore.
+- **Dad's snore.** 2 seconds long, every 5 to 7.5 seconds (it changes every night), reaches 6 tiles around Dad. Move on the snore.
 - **Thunder.** Whole house, 2 seconds. But lightning flashes first and lights up every room.
 - **Washing machine, toilet flush, cuckoo clock, TV.** Each world adds its own.
 
 **Being seen**
 
 - Only awake characters can see. Their vision cone is drawn on the floor.
-- A cone is 90 degrees wide. It reaches 5 tiles in light and 2 tiles in the dark.
-- Stand in a cone and an Eye fills over their head. It takes 1 second in the dark and half a second in light. A full Eye means spotted.
+- A cone is 90 degrees wide. It reaches 5 tiles in light and 2.5 tiles in the dark.
+- Stand in a cone and an Eye fills over their head. It takes 0.7 seconds in the dark and 0.4 seconds in light. A full Eye means spotted.
 - Walls, closed doors and big furniture block sight.
 - **Light zones** make you easy to see: the open fridge, night lights, TV glow, moonlight. Some can be switched off.
 - **Hiding spots** make you invisible, unless they watched you climb in.
@@ -182,8 +183,8 @@ The house makes its own noise. While a cover sound plays, your rings shrink by 3
 ```mermaid
 flowchart LR
   A["Asleep<br>Zs float overhead.<br>Each ring pops 1 Z, a big noise pops 2"] --> B["Stirring<br>At 1 Z left. Shows a ? as a warning"]
-  B --> C["Awake and searching<br>At 0 Zs. Walks to the noise, looks for 8 seconds"]
-  B -- "8 seconds of quiet: a Z grows back" --> A
+  B --> C["Awake and searching<br>At 0 Zs. Walks to the noise, looks for 10 seconds"]
+  B -- "12 seconds of quiet: a Z grows back" --> A
   C -- "finds nothing" --> D["Back to bed<br>Sleeps lighter after: 1 Z less"]
   D -- "falls asleep again" --> A
   C -- "sees you" --> E(["Spots you<br>Grown-up: Busted.<br>Pet or sibling: their own reaction"])
@@ -197,8 +198,8 @@ Nobody in the house is a villain. Each one is a puzzle with their own rules and 
 
 **Your family**
 
-- **Dad, "Big Snore" (5 Zs).** The deepest sleeper in the house. His snore is a cover sound, so the safest path is often right past him. If woken he shuffles slowly with a narrow 60 degree cone. Secret: he raids the fridge too.
-- **Mom, "Radar Mom" (3 Zs).** Light sleeper, fast walker, full cone. On some nights she gets a glass of water at 2:00. If woken she may do a **bed check**: she walks to your room and looks at your bed. An empty bed with no Pillow Dummy means Busted.
+- **Dad, "Big Snore" (3 Zs).** The deepest sleeper in the house. His snore is a cover sound, so the safest path is often right past him. If woken he shuffles with a narrow 60 degree cone, mumbling ("Biscuit? Was that you?"). **Dad gets hungry too.** Once a night he gets up on his own for a midnight snack, and every time he is woken he heads for the kitchen. He eats one snack you have not taken yet (never the Craving), then checks your bed on the way back. Leave snacks lying around and you lose the Feast Star. When woken he also patrols: 55% of the time he switches the upstairs hallway light on for 18 seconds (the whole hallway counts as lit), he searches one more room, and 40% of the time he stubs his toe (a ring of 5). His clomping wakes Mom 40% of the time, and she comes looking too.
+- **Mom, "Radar Mom" (2 Zs).** Light sleeper, fast walker, full cone. On some nights she gets a glass of water at 2:00, and from Night 4 she may get up for the bathroom at a random time. If woken she always does a **bed check**: she walks to your room and looks at your bed. An empty bed with no Pillow Dummy means Busted.
 - **Mika, big sister (awake until 2:00).** On her phone with headphones on. Noise does nothing to her, but her eyes work fine. She never busts you. She charges **Snack Tax**: the best snack in your hands. Empty hands? You get 60 seconds to bring her one, or she calls Mom.
 - **Baby Boo (2 Zs).** Wakes at the smallest ring. Cries for 10 seconds, and each cry pops Zs all around him. Calm him with the Rock the Crib mini-game or a Pacifier.
 
@@ -506,7 +507,7 @@ There are three things to earn, and each has one clear job.
 
 ```mermaid
 flowchart LR
-  A["1. Raid a night<br>2 to 4 minutes, one new trick, a Secret Stash"] -- "about 150 coins a good night" --> B["2. Earn<br>Coins, Crumbs, stars, Golden Wrappers"]
+  A["1. Raid a night<br>about 2 and a half minutes, one new trick, a Secret Stash"] -- "about 150 coins a good night" --> B["2. Earn<br>Coins, Crumbs, stars, Golden Wrappers"]
   B --> C["3. Spend<br>Gadgets, gadget levels, pajamas, Excuse Cards"]
   C -- "new gear opens new routes" --> D["4. Unlock<br>Ranks, boss nights, new worlds"]
   D --> A
@@ -912,11 +913,12 @@ This should be a game a parent is happy to hand over.
 
 Version 1 is World 1, done well. Everything else waits until a real kid has played it.
 
-**Built so far: version 0.1**
+**Built so far: version 0.3**
 
 - A playable web build is in the project folder. It runs in a browser, works offline once hosted, and can be wrapped for Android.
 - **In:** all 8 nights of World 1, the Dad boss, a Sugar Dream coin rush, 6 cast members, 12 snacks, 8 gadgets with levels, stars, points, coins, ranks, Excuse Cards, the Snack Streak, 7 pajama sets and all 26 codes.
-- **Not in yet:** Daily Craving, Daily Dares, Night Twists, the Sticker Album, eat-now boosts, bedroom decorating and the other 11 gadgets.
+- **Version 0.3 adds:** a harder game (shorter nights, lighter sleepers, peeking), Dad's midnight snack runs, 4 Night Twists (Thunderstorm, Power Cut, Sleepwalking Dad, Party Leftovers), snacks and creaky boards that move between tries, night lighting, a new raider with front and back views and a walk cycle, and a drag control that works anywhere on the screen.
+- **Not in yet:** Daily Craving, Daily Dares, the other Night Twists, the Sticker Album, eat-now boosts, bedroom decorating and the other 11 gadgets.
 
 **Version 0.2: the Android app**
 

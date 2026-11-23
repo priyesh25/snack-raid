@@ -33,6 +33,15 @@ for suf, col in DINO.items():
 for suf, col in STAR.items():
     add("kid_star" + suf, kid_star(with_juice=False, colors=col), KID)
 
+# in-game raider frames: <sprite>_f0..f2 (front) and <sprite>_b0..b2 (back), three steps each
+from raider import raider
+RKID = (-100, -272, 200, 290)
+for kind, table in (("dino", DINO), ("star", STAR)):
+    for suf, col in table.items():
+        for view, v in (("front", "f"), ("back", "b")):
+            for step in (0, 1, 2):
+                add(f"kid_{kind}{suf}_{v}{step}", raider(kind, col, view, step), RKID)
+
 # family, pets, machines
 add("dad", dad(), ADULT)
 add("dad_awake", dad(awake=True), ADULT)

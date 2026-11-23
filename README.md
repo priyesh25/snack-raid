@@ -9,7 +9,9 @@ A funny stealth game for kids aged 10 to 12. It is midnight, you are hungry, and
 - **Made for landscape phones and tablets.** Also plays with a keyboard on a laptop.
 - **Kid-safe.** No ads, no purchases, no accounts, no chat. Progress stays on the device. Up to 4 named raiders per device, and save codes to move one to another phone.
 
-Version 0.2.0: all of World 1, and an Android app.
+Version 0.3.0: all of World 1, an Android app, and a harder, livelier game.
+
+**Newest Android app, one tap:** https://priyesh25.github.io/snack-raid/get/ (always the latest release)
 
 **Get the Android app:** https://priyesh25.github.io/snack-raid/apk/
 
@@ -68,7 +70,7 @@ After each release, bump `VERSION` in `app/js/data.js` and `CACHE` in `app/sw.js
 
 ## What is built, and what is not yet
 
-**In version 0.2.0**
+**In version 0.3.0**
 
 - World 1, Home Sweet Home: 8 nights, a Sugar Dream bonus night and the boss night
 - Noise rings, Zs, vision cones, light zones, cover sounds, hiding spots, doors, creaky boards, toy bricks
